@@ -12,15 +12,15 @@ team:
   name: "CodeCatalyst"                 # REQUIRED
   track: "Sustainability"              # REQUIRED — one of: AI | DevOps | Sustainability | Open
   lead:
-    name: "Prince Patel"
-    email: "23ec094@charusat.edu.in"
+    name: "Heer Pathak"
+    email: "23ce112@charusat.edu.in"
   members:
     - name: "Manasvee Viroja"
       email: "23dcs143@charusat.edu.in"
     - name: "Priyal Kalariya"
       email: "23dce053@charusat.edu.in"
-    - name: "Heer Pathak"
-      email: "23ce112@charusat.edu.in"
+    - name: "Prince Patel"
+      email: "23ec094@charusat.edu.in"
 
 submission:
   title: "GridSentinel"
