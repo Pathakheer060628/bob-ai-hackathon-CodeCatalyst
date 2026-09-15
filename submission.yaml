@@ -9,7 +9,7 @@
 # =============================================================================
 
 team:
-  name: "SentinelRx"                   # REQUIRED
+  name: "CodeCatalyst"                 # REQUIRED
   track: "Sustainability"              # REQUIRED — one of: AI | DevOps | Sustainability | Open
   lead:
     name: "Prince Patel"

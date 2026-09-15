@@ -8,7 +8,7 @@
 
 | Field | Value |
 |---|---|
-| **Team Name** | SentinelRx |
+| **Team Name** | CodeCatalyst |
 | **Track** | Sustainability |
 | **Team Lead** | Prince Patel — 23ec094@charusat.edu.in |
 | **Members** | Manasvee Viroja (23dcs143@charusat.edu.in), Priyal Kalariya (23dce053@charusat.edu.in), Heer Pathak (23ce112@charusat.edu.in) |
