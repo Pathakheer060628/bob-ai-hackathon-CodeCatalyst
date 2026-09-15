@@ -70,3 +70,31 @@ def test_empty_state_yields_no_trusted_numbers():
     result = verify_brief("The forecast peaks at 42000 MW.", {})
     assert not result.trusted
     assert result.trusted_pool_size == 0
+
+
+def test_narration_output_contains_expected_operator_brief_sections():
+    state = _sample_state()
+    narrative = TemplateNarrationProvider().narrate(state)
+    assert "**Demand Forecast**" in narrative
+    assert "**Renewable Performance" in narrative
+    assert "**Load-Balancing Recommendation:**" in narrative or "Load-Balancing" in narrative
+    assert "**Curtailment Minimization Plan:**" in narrative
+
+
+def test_verifier_respects_relative_tolerance_for_rounded_numbers():
+    state = _sample_state()
+    plan = state["load_balance"]
+    exact_cost = plan.total_cost
+
+    # a value within the implementation's 1% relative tolerance of a real
+    # trusted number should still verify (accounts for narration rounding)
+    within_tolerance = round(exact_cost * 1.005, 2)
+    result_ok = verify_brief(f"Estimated operating cost: {within_tolerance:.2f}.", state)
+    assert result_ok.trusted
+    assert not result_ok.unverified_numbers
+
+    # a value clearly outside the tolerance band must be flagged
+    outside_tolerance = round(exact_cost * 1.5 + 10000, 2)
+    result_bad = verify_brief(f"Estimated operating cost: {outside_tolerance:.2f}.", state)
+    assert outside_tolerance in result_bad.unverified_numbers
+    assert not result_bad.trusted

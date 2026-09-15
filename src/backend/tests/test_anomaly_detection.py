@@ -79,3 +79,48 @@ def test_unknown_asset_raises():
     df = _synthetic_history()
     with pytest.raises(ValueError):
         detect_renewable_anomalies(df.iloc[-24:], df, "coal")
+
+
+def test_solar_sustained_underperformance_is_detected():
+    df = _synthetic_history()
+    window = df.iloc[-24 * 7 :].copy()
+    # knock solar output down for 3 consecutive days during daylight hours
+    window.loc[window.index[-72:], "solar_actual_mw"] *= 0.1
+    window.loc[window.index[-72:], "solar_capacity_factor"] = (
+        window.loc[window.index[-72:], "solar_actual_mw"] / window["solar_capacity_mw"]
+    )
+    result = detect_renewable_anomalies(window, df, "solar")
+    assert result.asset == "solar"
+    assert len(result.episodes) >= 1
+    assert any(ep.direction == "under" for ep in result.episodes)
+
+
+def test_offshore_wind_sustained_underperformance_is_detected():
+    df = _synthetic_history()
+    window = df.iloc[-24 * 7 :].copy()
+    # knock offshore wind output down for 3 consecutive days -> sustained underperformance
+    window.loc[window.index[-72:], "wind_offshore_actual_mw"] *= 0.05
+    window.loc[window.index[-72:], "wind_offshore_capacity_factor"] = (
+        window.loc[window.index[-72:], "wind_offshore_actual_mw"] / window["wind_offshore_capacity_mw"]
+    )
+    result = detect_renewable_anomalies(window, df, "wind_offshore")
+    assert result.asset == "wind_offshore"
+    assert len(result.episodes) >= 1
+    assert any(ep.direction == "under" for ep in result.episodes)
+
+
+def test_detect_renewable_anomalies_is_deterministic():
+    df = _synthetic_history()
+    window = df.iloc[-24 * 7 :].copy()
+    window.loc[window.index[-72:], "wind_onshore_actual_mw"] *= 0.05
+    window.loc[window.index[-72:], "wind_onshore_capacity_factor"] = (
+        window.loc[window.index[-72:], "wind_onshore_actual_mw"] / window["wind_onshore_capacity_mw"]
+    )
+    result_a = detect_renewable_anomalies(window, df, "wind_onshore")
+    result_b = detect_renewable_anomalies(window, df, "wind_onshore")
+    assert len(result_a.episodes) == len(result_b.episodes)
+    for ep_a, ep_b in zip(result_a.episodes, result_b.episodes):
+        assert ep_a.start == ep_b.start
+        assert ep_a.end == ep_b.end
+        assert ep_a.direction == ep_b.direction
+        assert ep_a.avg_deviation == ep_b.avg_deviation

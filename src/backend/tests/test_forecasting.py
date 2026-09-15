@@ -54,6 +54,19 @@ def test_forecast_demand_bounds_are_ordered():
         assert h.lower_bound_mw <= h.forecast_mw <= h.upper_bound_mw
 
 
+def test_forecast_demand_timestamps_are_hourly_and_aligned():
+    series = _synthetic_load_series()
+    horizon = 24
+    result = forecast_demand(series, horizon_hours=horizon)
+    timestamps = [h.timestamp for h in result.hourly]
+    assert len(timestamps) == horizon
+    # first forecast hour is exactly one hour after the last observed history point
+    assert timestamps[0] == series.index.max() + pd.Timedelta(hours=1)
+    # every subsequent hour steps forward by exactly one hour, no gaps/dupes
+    for prev, nxt in zip(timestamps, timestamps[1:]):
+        assert nxt - prev == pd.Timedelta(hours=1)
+
+
 def test_forecast_renewable_supply_nonnegative():
     from backend.data.loader import load_grid_data
 
