@@ -1,1 +1,5 @@
-TODO: add a hosted demo video link (YouTube, Loom, or Box) before final submission.
+## Demo Video
+
+Watch the working prototype demonstration of GridOptima AI:
+
+[Click here to watch the demo video](https://drive.google.com/file/d/1TVYVfZt2sWLUMza79eP-azgJRPVdAWfR/view?usp=sharing)
