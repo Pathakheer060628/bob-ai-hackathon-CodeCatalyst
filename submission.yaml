@@ -1,0 +1,87 @@
+# =============================================================================
+# HACKATHON SUBMISSION METADATA
+# =============================================================================
+# Instructions:
+#   - Fill in ALL required fields (marked with # REQUIRED)
+#   - Optional fields can be left as empty strings ""
+#   - Do NOT rename this file — the evaluation pipeline reads it by name
+#   - Use double quotes around all string values
+# =============================================================================
+
+team:
+  name: "SentinelRx"                   # REQUIRED
+  track: "Sustainability"              # REQUIRED — one of: AI | DevOps | Sustainability | Open
+  lead:
+    name: "Prince Patel"
+    email: "23ec094@charusat.edu.in"
+  members:
+    - name: "Manasvee Viroja"
+      email: "23dcs143@charusat.edu.in"
+    - name: "Priyal Kalariya"
+      email: "23dce053@charusat.edu.in"
+    - name: "Heer Pathak"
+      email: "23ce112@charusat.edu.in"
+
+submission:
+  title: "GridSentinel"
+
+  problem_statement: >                 # REQUIRED — 1-3 sentences. What problem? Who has it?
+    Grid operators must forecast demand spikes, balance renewable generation, and detect
+    underperforming solar/wind assets simultaneously -- with very limited real-time decision
+    support today -- while ~8 TWh of clean energy was curtailed in the US in 2023 because the
+    grid couldn't absorb it when it was produced.
+
+  solution_summary: >                  # REQUIRED — 1-3 sentences. What did you build?
+    GridSentinel is a LangGraph pipeline over real German grid data (2017-2019, ENTSO-E via
+    Open Power System Data): it forecasts demand and renewable supply, flags spikes, detects
+    sustained renewable underperformance with CUSUM change-point detection, classifies a root
+    cause per anomaly, solves an LP-based load-balancing plan (dispatch/storage/demand
+    response), and computes a curtailment-minimization plan by comparing that plan against a
+    no-flexibility baseline. A deterministic tool computes every number; an LLM only narrates
+    it; a verifier agent checks the narrative against computed state before it reaches an
+    operator.
+
+  key_features:                        # REQUIRED — List 3 to 5 specific features you implemented
+    - "Seasonal-naive demand forecasting with bounded trend adjustment and spike flagging"
+    - "CUSUM change-point anomaly detection per renewable asset class (solar, onshore wind, offshore wind)"
+    - "Rule-based root-cause classification: curtailment-likely, weather-driven, equipment fault, or benign surplus"
+    - "LP-based load-balancing plan (dispatch, battery storage, demand response) solved with scipy linprog"
+    - "Curtailment-minimization plan quantifying MWh avoided vs. a no-flexibility baseline, plus a verifier agent that re-checks every narrated number against computed state"
+
+  tech_stack:
+    languages: ["Python", "JavaScript"]
+    frameworks: ["FastAPI", "LangGraph", "React", "Vite"]
+    ibm_technologies: ["IBM Bob / watsonx.ai (pluggable narration provider)"]
+    databases: []
+    other: ["pandas", "numpy", "scipy", "ReportLab", "Jinja2", "pytest", "Server-Sent Events"]
+
+  what_we_are_most_proud_of: >
+    The verifier agent (src/backend/agents/verifier.py): it independently re-extracts every
+    number in a drafted brief and checks it traces back to a real computed statistic, flagging
+    anything that doesn't. Combined with the "LLM narrates, never calculates" rule enforced
+    across the backend, this is what makes it defensible to hand GridSentinel's output to a
+    grid operator making real dispatch decisions.
+
+  known_limitations: >
+    The dataset is real (German grid load/solar/wind, 2017-2019, via Open Power System Data /
+    ENTSO-E) but limited to one country and one three-year window -- see
+    src/backend/data/DATA_SOURCE.md. Curtailment is legitimately near-zero in most windows of
+    this dataset since national-scale renewable output rarely exceeded demand in this period;
+    the curtailment-minimization LP is verified correct against synthetic oversupply scenarios
+    in tests and will report nonzero avoided curtailment on any window where renewable forecast
+    approaches demand. The IBM Bob/watsonx.ai provider is real, wired code, not exercised here
+    (no API key in this environment) -- the default offline template provider is what the demo
+    runs on.
+
+# =============================================================================
+# ARTIFACT LOCATIONS
+# These paths are relative to the repo root. Only change if you moved files.
+# =============================================================================
+artifacts:
+  source_code: "src/"
+  setup_guide: "docs/setup-guide.md"
+  architecture_doc: "docs/architecture.md"
+  demo_video: "demo/demo-video-link.txt"   # URL to hosted video (YouTube, Loom, Box)
+  live_demo: "demo/live-demo-url.txt"      # URL to deployed demo (optional)
+  screenshots: "demo/screenshots/"
+  presentation: "presentation/"

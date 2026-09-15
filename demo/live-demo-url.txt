@@ -1,0 +1,1 @@
+No hosted live demo -- run locally per docs/setup-guide.md (backend: uvicorn on :8000, frontend: vite on :5173).
