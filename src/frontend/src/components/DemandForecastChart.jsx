@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import Icon from "./ui/Icon.jsx";
 
 const WIDTH = 720;
 const HEIGHT = 220;
@@ -114,42 +115,50 @@ export default function DemandForecastChart({ forecast }) {
         )}
       </svg>
 
-      {hovered && (
-        <div style={{ fontSize: 12, color: "var(--text-secondary)" }}>
-          <strong style={{ color: "var(--text-primary)" }}>
-            {new Date(hovered.timestamp).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit" })}
-          </strong>{" "}
-          — {hovered.forecast_mw.toLocaleString()} MW
-          {hovered.is_spike && <span className="chip chip--under" style={{ marginLeft: 8 }}>spike</span>}
-        </div>
-      )}
+      <div className="chart-tooltip">
+        {hovered ? (
+          <>
+            <Icon name="activity" size={13} />
+            <strong>
+              {new Date(hovered.timestamp).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit" })}
+            </strong>
+            — {hovered.forecast_mw.toLocaleString()} MW
+            {hovered.is_spike && <span className="chip chip--under">spike</span>}
+          </>
+        ) : (
+          <span style={{ color: "var(--text-muted)" }}>Hover the chart to inspect an hour</span>
+        )}
+      </div>
 
       <button className="toggle-table" onClick={() => setShowTable((s) => !s)}>
+        <Icon name={showTable ? "minus" : "plus"} size={13} />
         {showTable ? "Hide table view" : "View as table"}
       </button>
       {showTable && (
-        <table className="data-table">
-          <thead>
-            <tr>
-              <th>Hour</th>
-              <th>Forecast (MW)</th>
-              <th>Range (MW)</th>
-              <th>Spike</th>
-            </tr>
-          </thead>
-          <tbody>
-            {hourly.map((h, i) => (
-              <tr key={i}>
-                <td>{new Date(h.timestamp).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit" })}</td>
-                <td>{h.forecast_mw.toLocaleString()}</td>
-                <td>
-                  {h.lower_bound_mw.toLocaleString()}–{h.upper_bound_mw.toLocaleString()}
-                </td>
-                <td>{h.is_spike ? "Yes" : ""}</td>
+        <div className="table-wrap" style={{ marginTop: 8 }}>
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Hour</th>
+                <th>Forecast (MW)</th>
+                <th>Range (MW)</th>
+                <th>Spike</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {hourly.map((h, i) => (
+                <tr key={i}>
+                  <td>{new Date(h.timestamp).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit" })}</td>
+                  <td>{h.forecast_mw.toLocaleString()}</td>
+                  <td>
+                    {h.lower_bound_mw.toLocaleString()}–{h.upper_bound_mw.toLocaleString()}
+                  </td>
+                  <td>{h.is_spike ? "Yes" : ""}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   );

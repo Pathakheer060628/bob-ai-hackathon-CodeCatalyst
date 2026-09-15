@@ -1,4 +1,5 @@
 import { useState } from "react";
+import Icon from "./ui/Icon.jsx";
 
 export default function RunForm({ datasetInfo, onSubmit, disabled }) {
   const defaultEnd = datasetInfo ? datasetInfo.end.slice(0, 16) : "";
@@ -14,7 +15,10 @@ export default function RunForm({ datasetInfo, onSubmit, disabled }) {
   return (
     <form className="run-form" onSubmit={handleSubmit}>
       <div className="run-form__field">
-        <label htmlFor="window-end">Analysis "as of" time</label>
+        <label htmlFor="window-end">
+          <Icon name="activity" size={14} />
+          Analysis "as of" time
+        </label>
         <input
           id="window-end"
           type="datetime-local"
@@ -25,7 +29,10 @@ export default function RunForm({ datasetInfo, onSubmit, disabled }) {
         />
       </div>
       <div className="run-form__field">
-        <label htmlFor="lookback">Lookback window (days)</label>
+        <label htmlFor="lookback">
+          <Icon name="layers" size={14} />
+          Lookback window (days)
+        </label>
         <input
           id="lookback"
           type="number"
@@ -36,7 +43,10 @@ export default function RunForm({ datasetInfo, onSubmit, disabled }) {
         />
       </div>
       <div className="run-form__field">
-        <label htmlFor="horizon">Forecast horizon (hours)</label>
+        <label htmlFor="horizon">
+          <Icon name="trendingUp" size={14} />
+          Forecast horizon (hours)
+        </label>
         <input
           id="horizon"
           type="number"
@@ -46,9 +56,21 @@ export default function RunForm({ datasetInfo, onSubmit, disabled }) {
           onChange={(e) => setHorizonHours(e.target.value)}
         />
       </div>
-      <button type="submit" disabled={disabled}>
-        {disabled ? "Running..." : "Run Optimisation"}
-      </button>
+      <div className="run-form__submit">
+        <button className="btn btn-primary" type="submit" disabled={disabled}>
+          {disabled ? (
+            <>
+              <span className="spinner" />
+              Running...
+            </>
+          ) : (
+            <>
+              <Icon name="bolt" size={15} />
+              Run Optimisation
+            </>
+          )}
+        </button>
+      </div>
     </form>
   );
 }

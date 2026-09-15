@@ -1,8 +1,19 @@
+import Icon from "./ui/Icon.jsx";
+
 export default function CurtailmentPanel({ curtailment }) {
   const pct = curtailment.curtailment_reduction_pct;
   return (
     <div className="card">
-      <h2>Curtailment Minimization Plan</h2>
+      <div className="section-header">
+        <div>
+          <div className="section-header__title-row">
+            <span className="section-header__icon">
+              <Icon name="scissors" size={16} />
+            </span>
+            <h2>Curtailment Minimization Plan</h2>
+          </div>
+        </div>
+      </div>
       <div className="stat-row">
         <div className="stat-tile">
           <div className="stat-tile__label">Baseline curtailment</div>
