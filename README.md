@@ -1,8 +1,8 @@
 # ⚡ GridSentinel
 
 > Grid Load Optimisation & Renewable Energy Performance Advisor
-
----
+> ---
+<img width="1600" height="884" alt="WhatsApp Image 2026-09-16 at 10 50 02 AM" src="https://github.com/user-attachments/assets/f82b9e8e-f7be-4275-89d5-b7f993db2d1d" />
 
 ## 👥 Team
 
@@ -10,8 +10,8 @@
 |---|---|
 | **Team Name** | CodeCatalyst |
 | **Track** | AI Utilities |
-| **Team Lead** | Prince Patel — 23ec094@charusat.edu.in |
-| **Members** | Manasvee Viroja (23dcs143@charusat.edu.in), Priyal Kalariya (23dce053@charusat.edu.in), Heer Pathak (23ce112@charusat.edu.in) |
+| **Team Lead** | Heer Pathak (23ce112@charusat.edu.in) |
+| **Members** | Manasvee Viroja (23dcs143@charusat.edu.in), Priyal Kalariya (23dce053@charusat.edu.in), Prince Patel (23ec094@charusat.edu.in) |
 
 ---
 
