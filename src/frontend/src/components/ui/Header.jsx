@@ -1,6 +1,6 @@
 import Icon from "./Icon.jsx";
 
-export default function Header({ datasetInfo, backendStatus, activeStatus, activeVerified, onMenuClick }) {
+export default function Header({ datasetInfo, backendStatus, activeStatus, activeVerified, onMenuClick, theme, onToggleTheme }) {
   const running = activeStatus === "running" || activeStatus === "pending";
   return (
     <header className="topbar">
@@ -53,6 +53,15 @@ export default function Header({ datasetInfo, backendStatus, activeStatus, activ
             {activeVerified ? "Verified" : "Flagged"}
           </span>
         )}
+        <button
+          type="button"
+          className="theme-toggle"
+          onClick={onToggleTheme}
+          aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+          title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+        >
+          <Icon name={theme === "dark" ? "sun" : "moon"} size={16} />
+        </button>
         <span className="topbar__avatar" aria-label="User">
           <Icon name="user" size={16} />
         </span>
