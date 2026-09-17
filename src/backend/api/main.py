@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 
 import pandas as pd
@@ -12,12 +13,24 @@ from fastapi.responses import Response
 from sse_starlette.sse import EventSourceResponse
 
 from backend.agents.orchestrator import PipelineRequest, stream_pipeline
+from backend.api.db import init_db
 from backend.api.run_store import run_store
-from backend.api.schemas import RunCreateRequest, serialize_run_result, to_load_balance_config
+from backend.api.schemas import (
+    RunCreateRequest,
+    serialize_run_result,
+    serialize_run_summary,
+    to_load_balance_config,
+)
 from backend.data.loader import data_bounds, load_grid_data
 from backend.reports.pdf_export import build_pdf_report
 
-app = FastAPI(title="GridSentinel API", version="0.1.0")
+@asynccontextmanager
+async def _lifespan(app: FastAPI):
+    init_db()
+    yield
+
+
+app = FastAPI(title="GridSentinel API", version="0.1.0", lifespan=_lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -72,6 +85,12 @@ def create_run(payload: RunCreateRequest):
     return {"run_id": record.run_id, "status": record.status}
 
 
+@app.get("/api/runs")
+def list_runs(limit: int = 25):
+    records = run_store.list_recent(limit=limit)
+    return {"runs": [serialize_run_summary(r) for r in records]}
+
+
 @app.get("/api/runs/{run_id}/stream")
 async def stream_run(run_id: str):
     record = run_store.get(run_id)
@@ -98,6 +117,7 @@ async def stream_run(run_id: str):
             for node_name, update in stream_pipeline(request):
                 final_state.update(update)
                 for line in update.get("progress_log", []):
+                    run_store.append_progress(run_id, line)
                     yield {
                         "event": "progress",
                         "data": json.dumps({"node": node_name, "message": line}),

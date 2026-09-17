@@ -141,6 +141,53 @@ def serialize_verification(result) -> dict[str, Any]:
     }
 
 
+def serialize_run_summary(record: Any) -> dict[str, Any]:
+    """Compact summary of a RunRecord for the run-list / command-center views.
+
+    Pulls a handful of headline figures out of an already-computed result
+    (never recomputes anything) so the frontend can render run cards without
+    re-fetching the full result payload for every row.
+    """
+    summary: dict[str, Any] = {
+        "run_id": record.run_id,
+        "status": record.status,
+        "created_at": record.created_at.isoformat() if record.created_at else None,
+        "window_end": record.window_end,
+        "lookback_days": record.lookback_days,
+        "horizon_hours": record.horizon_hours,
+        "error": record.error,
+        "peak_demand_mw": None,
+        "renewable_output_mwh": None,
+        "curtailment_avoided_mwh": None,
+        "verification_status": None,
+        "anomaly_count": None,
+    }
+
+    result = record.result
+    if not result:
+        return summary
+
+    forecast = result.get("forecast") or {}
+    peak = forecast.get("peak") or {}
+    summary["peak_demand_mw"] = peak.get("forecast_mw")
+
+    load_balance = result.get("load_balance") or {}
+    hours = load_balance.get("hours") or []
+    if hours:
+        summary["renewable_output_mwh"] = sum(h.get("renewable_mw", 0.0) for h in hours)
+
+    curtailment = result.get("curtailment") or {}
+    summary["curtailment_avoided_mwh"] = curtailment.get("curtailment_avoided_mwh")
+
+    verification = result.get("verification") or {}
+    if "trusted" in verification:
+        summary["verification_status"] = "verified" if verification["trusted"] else "failed"
+
+    summary["anomaly_count"] = len(result.get("anomalies") or [])
+
+    return summary
+
+
 def serialize_run_result(state: dict) -> dict[str, Any]:
     return {
         "forecast": serialize_forecast(state["forecast"]),

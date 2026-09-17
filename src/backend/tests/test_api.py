@@ -73,3 +73,33 @@ def test_pdf_before_run_complete_returns_409():
 def test_unknown_run_id_returns_404():
     assert client.get("/api/runs/doesnotexist").status_code == 404
     assert client.get("/api/runs/doesnotexist/report.pdf").status_code == 404
+
+
+def test_list_runs_includes_created_run():
+    create_resp = client.post(
+        "/api/runs", json={"window_end": "2019-06-30T23:00:00", "lookback_days": 30, "horizon_hours": 24}
+    )
+    run_id = create_resp.json()["run_id"]
+
+    list_resp = client.get("/api/runs")
+    assert list_resp.status_code == 200
+    body = list_resp.json()
+    assert "runs" in body
+    ids = [r["run_id"] for r in body["runs"]]
+    assert run_id in ids
+
+
+def test_list_runs_summary_reflects_completed_run():
+    create_resp = client.post(
+        "/api/runs", json={"window_end": "2019-06-30T23:00:00", "lookback_days": 30, "horizon_hours": 24}
+    )
+    run_id = create_resp.json()["run_id"]
+    with client.stream("GET", f"/api/runs/{run_id}/stream") as stream_resp:
+        for _ in stream_resp.iter_lines():
+            pass
+
+    body = client.get("/api/runs").json()
+    summary = next(r for r in body["runs"] if r["run_id"] == run_id)
+    assert summary["status"] == "done"
+    assert summary["verification_status"] in ("verified", "failed")
+    assert summary["curtailment_avoided_mwh"] is not None

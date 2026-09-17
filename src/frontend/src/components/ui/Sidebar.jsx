@@ -1,50 +1,44 @@
+import { NavLink } from "react-router-dom";
 import Icon from "./Icon.jsx";
 
 const NAV_ITEMS = [
-  { id: "section-overview", label: "Overview", icon: "grid" },
-  { id: "section-optimization", label: "Optimization", icon: "sliders" },
-  { id: "section-forecast", label: "Forecast", icon: "trendingUp" },
-  { id: "section-anomalies", label: "Renewables", icon: "sun" },
-  { id: "section-anomalies", label: "Anomalies", icon: "alertTriangle" },
-  { id: "section-loadbalance", label: "Load Balance", icon: "battery" },
-  { id: "section-curtailment", label: "Curtailment", icon: "scissors" },
-  { id: "section-verification", label: "Verification", icon: "shieldCheck" },
-  { id: "section-brief", label: "Reports", icon: "fileText" },
+  { to: "/", label: "Command Center", icon: "grid", end: true },
+  { to: "/new-run", label: "New Run", icon: "bolt" },
+  { to: "/anomalies", label: "Anomaly Intelligence", icon: "sun" },
+  { to: "/optimization", label: "Optimization Plan", icon: "battery" },
+  { to: "/curtailment", label: "Curtailment Impact", icon: "scissors" },
+  { to: "/brief", label: "Operator Brief", icon: "fileText" },
+  { to: "/history", label: "Run History", icon: "layers" },
 ];
 
-/** Visual navigation only: scrolls to an existing section if it is present
- * on the page. Never fabricates pages/data — items simply no-op until the
- * corresponding section has rendered (i.e. a run has produced results). */
-export default function Sidebar({ availableIds, activeId, open, onNavigate }) {
-  const handleClick = (id) => {
-    const el = document.getElementById(id);
-    if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
-    onNavigate?.();
-  };
-
+export default function Sidebar({ open, collapsed, onNavigate, onToggleCollapse, backendOnline }) {
   return (
-    <aside className={`sidebar ${open ? "sidebar--open" : ""}`}>
+    <aside className={`sidebar ${open ? "sidebar--open" : ""} ${collapsed ? "sidebar--collapsed" : ""}`}>
       <nav className="sidebar__nav">
-        {NAV_ITEMS.map((item, i) => {
-          const available = availableIds.has(item.id);
-          const active = available && activeId === item.id;
-          return (
-            <button
-              key={`${item.id}-${i}`}
-              type="button"
-              className={`sidebar__item ${active ? "sidebar__item--active" : ""} ${!available ? "sidebar__item--disabled" : ""}`}
-              onClick={() => available && handleClick(item.id)}
-              disabled={!available}
-            >
-              <Icon name={item.icon} size={17} />
-              <span>{item.label}</span>
-            </button>
-          );
-        })}
+        <span className="sidebar__section-label">Navigate</span>
+        {NAV_ITEMS.map((item) => (
+          <NavLink
+            key={item.to}
+            to={item.to}
+            end={item.end}
+            onClick={onNavigate}
+            className={({ isActive }) => `sidebar__item nav-link ${isActive ? "sidebar__item--active" : ""}`}
+          >
+            <Icon name={item.icon} size={17} />
+            <span>{item.label}</span>
+          </NavLink>
+        ))}
       </nav>
-      <div className="sidebar__footer">
-        <span className="sidebar__footer-dot" />
-        System nominal
+
+      <div>
+        <button type="button" className="sidebar__collapse-btn" onClick={onToggleCollapse}>
+          <Icon name={collapsed ? "menu" : "chevronRight"} size={15} style={{ transform: collapsed ? "none" : "rotate(180deg)" }} />
+          {!collapsed && <span>Collapse</span>}
+        </button>
+        <div className="sidebar__footer">
+          <span className="sidebar__footer-dot" style={{ background: backendOnline ? "var(--status-good)" : "var(--status-critical)" }} />
+          <span>{backendOnline ? "Backend reachable" : "Backend unreachable"}</span>
+        </div>
       </div>
     </aside>
   );
