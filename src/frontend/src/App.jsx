@@ -1,8 +1,20 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Route, Routes } from "react-router-dom";
 import Header from "./components/ui/Header.jsx";
 import Sidebar from "./components/ui/Sidebar.jsx";
 import { useRuns } from "./context/RunContext.jsx";
+
+const THEME_KEY = "gridsentinel-theme";
+
+function getInitialTheme() {
+  try {
+    const saved = localStorage.getItem(THEME_KEY);
+    if (saved === "light" || saved === "dark") return saved;
+  } catch {
+    /* ignore storage access errors (private mode, etc.) */
+  }
+  return "dark";
+}
 
 import CommandCenter from "./pages/CommandCenter.jsx";
 import NewRun from "./pages/NewRun.jsx";
@@ -18,6 +30,16 @@ export default function App() {
   const { datasetInfo, backendStatus, activeStatus, activeResult } = useRuns();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
+  const [theme, setTheme] = useState(getInitialTheme);
+
+  useEffect(() => {
+    document.documentElement.setAttribute("data-theme", theme);
+    try {
+      localStorage.setItem(THEME_KEY, theme);
+    } catch {
+      /* ignore storage access errors (private mode, etc.) */
+    }
+  }, [theme]);
 
   const activeVerified = activeResult ? activeResult.verification?.trusted : null;
 
@@ -39,6 +61,8 @@ export default function App() {
           activeStatus={activeStatus}
           activeVerified={activeVerified}
           onMenuClick={() => setSidebarOpen((o) => !o)}
+          theme={theme}
+          onToggleTheme={() => setTheme((t) => (t === "dark" ? "light" : "dark"))}
         />
 
         <main className="content">
