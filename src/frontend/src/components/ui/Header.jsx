@@ -1,6 +1,7 @@
 import Icon from "./Icon.jsx";
 
-export default function Header({ datasetInfo, running, verified, onMenuClick }) {
+export default function Header({ datasetInfo, backendStatus, activeStatus, activeVerified, onMenuClick, theme, onToggleTheme }) {
+  const running = activeStatus === "running" || activeStatus === "pending";
   return (
     <header className="topbar">
       <div className="topbar__left">
@@ -19,32 +20,47 @@ export default function Header({ datasetInfo, running, verified, onMenuClick }) 
       </div>
 
       <div className="topbar__center">
-        {datasetInfo && (
-          <div className="topbar__dataset" title={`${datasetInfo.source} (${datasetInfo.license})`}>
-            <Icon name="layers" size={14} />
-            <span>
-              {datasetInfo.source} &middot; {datasetInfo.license}
-            </span>
-          </div>
-        )}
+        <div className="dataset-badge-row" style={{ marginBottom: 0 }}>
+          <span className="status-pill status-pill--historical" title="This system runs against a fixed historical extract, never live telemetry">
+            <Icon name="layers" size={13} />
+            Historical Simulation (2017&ndash;2019)
+          </span>
+          {datasetInfo && (
+            <div className="topbar__dataset" title={`${datasetInfo.source} (${datasetInfo.license})`}>
+              <Icon name="fileText" size={14} />
+              <span>
+                {datasetInfo.source} &middot; {datasetInfo.license}
+              </span>
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="topbar__right">
-        <span className={`status-pill ${running ? "status-pill--active" : "status-pill--idle"}`}>
+        <span className={`status-pill ${backendStatus === "online" ? "status-pill--good" : backendStatus === "offline" ? "status-pill--offline" : "status-pill--idle"}`}>
           <span className="status-pill__dot" />
-          {running ? "Live Analysis" : "Idle"}
+          {backendStatus === "online" ? "Backend online" : backendStatus === "offline" ? "Backend offline" : "Checking..."}
         </span>
-        {verified != null && (
-          <span className={`status-pill ${verified ? "status-pill--good" : "status-pill--warning"}`}>
-            <Icon name="shieldCheck" size={13} />
-            {verified ? "Verified" : "Flagged"}
+        {running && (
+          <span className="status-pill status-pill--active">
+            <span className="status-pill__dot" />
+            Pipeline running
           </span>
         )}
-        <button className="icon-btn" type="button" aria-label="Notifications">
-          <Icon name="bell" size={18} />
-        </button>
-        <button className="icon-btn" type="button" aria-label="Settings">
-          <Icon name="settings" size={18} />
+        {activeVerified != null && !running && (
+          <span className={`status-pill ${activeVerified ? "status-pill--good" : "status-pill--warning"}`}>
+            <Icon name="shieldCheck" size={13} />
+            {activeVerified ? "Verified" : "Flagged"}
+          </span>
+        )}
+        <button
+          type="button"
+          className="theme-toggle"
+          onClick={onToggleTheme}
+          aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+          title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+        >
+          <Icon name={theme === "dark" ? "sun" : "moon"} size={16} />
         </button>
         <span className="topbar__avatar" aria-label="User">
           <Icon name="user" size={16} />

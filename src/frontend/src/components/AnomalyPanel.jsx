@@ -18,7 +18,7 @@ function formatDate(iso) {
   return new Date(iso).toLocaleDateString(undefined, { month: "2-digit", day: "2-digit", year: "numeric" });
 }
 
-export default function AnomalyPanel({ anomalies }) {
+export default function AnomalyPanel({ anomalies, emptyMessage }) {
   if (!anomalies.length) {
     return (
       <div className="card">
@@ -34,7 +34,7 @@ export default function AnomalyPanel({ anomalies }) {
         </div>
         <p className="empty-state">
           <Icon name="checkCircle" size={15} />
-          No sustained anomalies detected across solar, onshore wind, or offshore wind in this window.
+          {emptyMessage || "No sustained anomalies detected across solar, onshore wind, or offshore wind in this window."}
         </p>
       </div>
     );

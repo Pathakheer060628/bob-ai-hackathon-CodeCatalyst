@@ -89,6 +89,10 @@ demo/*.mkv
 logs/
 *.log
 
+# ── GridSentinel local run database (persisted run history, not the dataset) ──
+src/backend/data/gridsentinel.db
+src/backend/data/*.db-journal
+
 # ── Jupyter Notebooks (optional: remove if you want to commit notebooks) ──────
 # .ipynb_checkpoints/
 
