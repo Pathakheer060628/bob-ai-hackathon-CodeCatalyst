@@ -1,6 +1,6 @@
 import Icon from "./Icon.jsx";
 
-export default function Header({ datasetInfo, backendStatus, activeStatus, activeVerified, onMenuClick, theme, onToggleTheme }) {
+export default function Header({ datasetInfo, backendStatus, activeStatus, onMenuClick, theme, onToggleTheme }) {
   const running = activeStatus === "running" || activeStatus === "pending";
   return (
     <header className="topbar">
@@ -37,20 +37,16 @@ export default function Header({ datasetInfo, backendStatus, activeStatus, activ
       </div>
 
       <div className="topbar__right">
-        <span className={`status-pill ${backendStatus === "online" ? "status-pill--good" : backendStatus === "offline" ? "status-pill--offline" : "status-pill--idle"}`}>
-          <span className="status-pill__dot" />
-          {backendStatus === "online" ? "Backend online" : backendStatus === "offline" ? "Backend offline" : "Checking..."}
-        </span>
+        {backendStatus === "offline" && (
+          <span className="status-pill status-pill--offline" title="The backend API is unreachable — start it to run the pipeline">
+            <span className="status-pill__dot" />
+            Backend offline
+          </span>
+        )}
         {running && (
           <span className="status-pill status-pill--active">
             <span className="status-pill__dot" />
             Pipeline running
-          </span>
-        )}
-        {activeVerified != null && !running && (
-          <span className={`status-pill ${activeVerified ? "status-pill--good" : "status-pill--warning"}`}>
-            <Icon name="shieldCheck" size={13} />
-            {activeVerified ? "Verified" : "Flagged"}
           </span>
         )}
         <button

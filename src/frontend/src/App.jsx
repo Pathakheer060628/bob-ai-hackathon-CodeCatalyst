@@ -27,7 +27,7 @@ import RunDetail from "./pages/RunDetail.jsx";
 import NotFound from "./pages/NotFound.jsx";
 
 export default function App() {
-  const { datasetInfo, backendStatus, activeStatus, activeResult } = useRuns();
+  const { datasetInfo, backendStatus, activeStatus } = useRuns();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const [theme, setTheme] = useState(getInitialTheme);
@@ -40,8 +40,6 @@ export default function App() {
       /* ignore storage access errors (private mode, etc.) */
     }
   }, [theme]);
-
-  const activeVerified = activeResult ? activeResult.verification?.trusted : null;
 
   return (
     <div className="shell">
@@ -59,7 +57,6 @@ export default function App() {
           datasetInfo={datasetInfo}
           backendStatus={backendStatus}
           activeStatus={activeStatus}
-          activeVerified={activeVerified}
           onMenuClick={() => setSidebarOpen((o) => !o)}
           theme={theme}
           onToggleTheme={() => setTheme((t) => (t === "dark" ? "light" : "dark"))}
