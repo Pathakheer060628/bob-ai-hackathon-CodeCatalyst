@@ -78,68 +78,71 @@ function BlueprintGrid({ id }) {
   return (
     <>
       <defs>
-        <pattern id={id} width="26" height="26" patternUnits="userSpaceOnUse">
+        <pattern id={id} width="22" height="22" patternUnits="userSpaceOnUse">
           <circle cx="1" cy="1" r="1" fill="currentColor" />
         </pattern>
       </defs>
-      <rect width="600" height="320" fill={`url(#${id})`} opacity="0.5" />
+      <rect width="480" height="250" fill={`url(#${id})`} opacity="0.5" />
     </>
   );
 }
 
+// Every art box shares one 480x250 canvas with "meet" scaling, so it always
+// renders fully and predictably -- no cropping math, and it lives inside a
+// fixed corner box that never reaches the flow row pinned top-right.
 function PipelineArt() {
   return (
-    <svg viewBox="0 0 600 320" className="hero__art-svg" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+    <svg viewBox="0 0 480 250" className="hero__art-svg" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
       <BlueprintGrid id="hg-pipeline" />
-      <SchematicBox x={250} y={64} w={100} h={46} label="INGEST" />
-      <SchematicBox x={400} y={64} w={100} h={46} label="MODEL" />
-      <SchematicBox x={400} y={208} w={100} h={46} label="REPORT" />
-      <SchematicBox x={250} y={208} w={100} h={46} label="PLAN" />
-      <SchematicWire points="350,87 400,87" />
-      <SchematicWire points="450,110 450,208" />
-      <SchematicWire points="400,231 350,231" />
-      <SchematicWire points="300,110 300,208" />
-      <SchematicPin x={400} y={87} />
-      <SchematicPin x={450} y={110} />
-      <SchematicPin x={450} y={208} />
-      <SchematicPin x={300} y={110} />
-      <SchematicPin x={300} y={208} />
-      <SchematicPin x={350} y={231} />
+      <SchematicBox x={30} y={25} w={160} h={56} label="INGEST" />
+      <SchematicBox x={290} y={25} w={160} h={56} label="MODEL" />
+      <SchematicBox x={290} y={165} w={160} h={56} label="REPORT" />
+      <SchematicBox x={30} y={165} w={160} h={56} label="PLAN" />
+      <SchematicWire points="190,53 290,53" />
+      <SchematicWire points="370,81 370,165" />
+      <SchematicWire points="290,193 190,193" />
+      <SchematicWire points="110,81 110,165" />
+      <SchematicPin x={290} y={53} />
+      <SchematicPin x={370} y={81} />
+      <SchematicPin x={370} y={165} />
+      <SchematicPin x={110} y={81} />
+      <SchematicPin x={110} y={165} />
+      <SchematicPin x={190} y={193} />
     </svg>
   );
 }
 
 function SolarArt() {
   return (
-    <svg viewBox="0 0 600 320" className="hero__art-svg" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+    <svg viewBox="0 0 480 250" className="hero__art-svg" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
       <BlueprintGrid id="hg-solar" />
-      <SchematicBox x={330} y={40} w={220} h={54} label="SOLAR PANELS" />
-      <SchematicBox x={370} y={140} w={140} h={44} label="INVERTER" />
-      <SchematicBox x={330} y={230} w={110} h={50} label="STORAGE" />
-      <SchematicBox x={460} y={230} w={110} h={50} label="GRID" />
-      <SchematicWire points="440,94 440,140" />
-      <SchematicWire points="440,184 385,184 385,230" />
-      <SchematicWire points="440,184 515,184 515,230" />
-      <SchematicPin x={440} y={94} />
-      <SchematicPin x={440} y={184} />
-      <SchematicPin x={385} y={230} />
-      <SchematicPin x={515} y={230} />
+      <SchematicBox x={140} y={10} w={200} h={54} label="SOLAR PANELS" />
+      <SchematicBox x={165} y={100} w={150} h={48} label="INVERTER" />
+      <SchematicBox x={40} y={186} w={130} h={52} label="STORAGE" />
+      <SchematicBox x={300} y={186} w={130} h={52} label="GRID" />
+      <SchematicWire points="240,64 240,100" />
+      <SchematicWire points="240,148 105,148 105,186" />
+      <SchematicWire points="240,148 365,148 365,186" />
+      <SchematicPin x={240} y={64} />
+      <SchematicPin x={240} y={148} />
+      <SchematicPin x={105} y={186} />
+      <SchematicPin x={365} y={186} />
     </svg>
   );
 }
 
 function ImpactArt() {
   return (
-    <svg viewBox="0 0 600 320" className="hero__art-svg" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+    <svg viewBox="0 0 480 250" className="hero__art-svg" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
       <BlueprintGrid id="hg-impact" />
-      <SchematicBox x={300} y={60} w={130} h={44} label="BASELINE" />
-      <SchematicBox x={300} y={220} w={130} h={44} label="OPTIMIZED" />
-      <SchematicBox x={470} y={140} w={100} h={44} label="AVOIDED" />
-      <SchematicWire points="365,104 365,220" />
-      <SchematicWire points="430,242 470,242 470,184" />
-      <SchematicPin x={365} y={104} />
-      <SchematicPin x={365} y={220} />
-      <SchematicPin x={470} y={184} />
+      <SchematicBox x={30} y={20} w={170} h={54} label="BASELINE" />
+      <SchematicBox x={30} y={176} w={170} h={54} label="OPTIMIZED" />
+      <SchematicBox x={280} y={98} w={170} h={54} label="AVOIDED" />
+      <SchematicWire points="115,74 115,176" />
+      <SchematicWire points="200,203 365,203 365,152" />
+      <SchematicPin x={115} y={74} />
+      <SchematicPin x={115} y={176} />
+      <SchematicPin x={365} y={152} />
     </svg>
   );
 }

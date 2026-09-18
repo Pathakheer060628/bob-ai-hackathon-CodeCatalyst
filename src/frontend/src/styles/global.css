@@ -2250,7 +2250,7 @@ table.data-table th {
 .hero {
   position: relative;
   width: 100%;
-  min-height: 460px;
+  height: 440px;
   border-radius: var(--radius-lg);
   overflow: hidden;
   margin-bottom: 22px;
@@ -2260,6 +2260,8 @@ table.data-table th {
 }
 
 .hero__slide {
+  /* Always absolute, always the exact size of .hero -- fixed banner size on
+     every slide and every theme, never driven by how tall its content is. */
   position: absolute;
   inset: 0;
   display: flex;
@@ -2268,6 +2270,7 @@ table.data-table th {
   padding: 40px 44px;
   opacity: 0;
   visibility: hidden;
+  pointer-events: none;
   transition: opacity 0.55s ease, background 0.4s ease;
   /* Recolored per slide below; falls back to the app accent. */
   --hero-accent: var(--accent);
@@ -2276,9 +2279,9 @@ table.data-table th {
 }
 
 .hero__slide.is-active {
-  position: relative;
   opacity: 1;
   visibility: visible;
+  pointer-events: auto;
 }
 
 .hero__slide--pipeline {
@@ -2332,8 +2335,14 @@ table.data-table th {
 }
 
 .hero__art {
+  /* Fixed box anchored bottom-right -- well clear of the flow row pinned in
+     the top-right corner, so the two layers never overlap. */
   position: absolute;
-  inset: 0;
+  right: 20px;
+  bottom: 20px;
+  width: 46%;
+  max-width: 480px;
+  height: 250px;
   color: var(--hero-accent);
   opacity: 0.4;
 }
@@ -2348,12 +2357,13 @@ table.data-table th {
 }
 
 .hero__flow {
-  position: relative;
-  align-self: flex-end;
+  position: absolute;
+  top: 28px;
+  right: 32px;
+  z-index: 1;
   display: flex;
   align-items: flex-start;
   gap: 28px;
-  margin: 0 8px 28px 0;
 }
 
 .hero__flow::before {
@@ -2545,18 +2555,23 @@ table.data-table th {
 
 @media (max-width: 900px) {
   .hero {
-    min-height: 420px;
+    height: 420px;
   }
 
   .hero__flow {
-    align-self: flex-start;
-    margin: 0 0 20px;
+    top: 20px;
+    right: 20px;
     gap: 18px;
   }
 
   .hero__flow-node {
     width: 36px;
     height: 36px;
+  }
+
+  .hero__art {
+    width: 42%;
+    height: 200px;
   }
 
   .hero__title {
@@ -2570,11 +2585,17 @@ table.data-table th {
 }
 
 @media (max-width: 640px) {
+  .hero {
+    height: 520px;
+  }
+
   .hero__slide {
     padding: 22px 20px;
   }
 
   .hero__flow {
+    top: 18px;
+    right: 18px;
     gap: 12px;
   }
 
@@ -2584,6 +2605,10 @@ table.data-table th {
   }
 
   .hero__flow-label {
+    display: none;
+  }
+
+  .hero__art {
     display: none;
   }
 
