@@ -6,7 +6,6 @@ import StatCard from "../components/ui/StatCard.jsx";
 import Icon from "../components/ui/Icon.jsx";
 import DemandForecastChart from "../components/DemandForecastChart.jsx";
 import EmptyRunState from "../components/ui/EmptyRunState.jsx";
-import EnergyFlowDiagram from "../components/EnergyFlowDiagram.jsx";
 
 function fmt(value, digits = 0) {
   if (value == null || Number.isNaN(value)) return "—";
@@ -44,16 +43,6 @@ export default function CommandCenter() {
   const verification = latestResult?.verification;
   const trusted = verification ? verification.trusted : null;
 
-  const loadBalanceHours = latestResult?.load_balance?.hours;
-  const liveHour = loadBalanceHours && loadBalanceHours.length ? loadBalanceHours[0] : null;
-  // No absolute storage capacity comes back from the API, so the fill level
-  // is approximated against the highest state-of-charge reached in this plan.
-  const socPct = (() => {
-    if (!liveHour || !loadBalanceHours?.length) return null;
-    const capacityEstimate = Math.max(...loadBalanceHours.map((h) => h.soc_mwh), 1);
-    return (liveHour.soc_mwh / capacityEstimate) * 100;
-  })();
-
   return (
     <div>
       <div className="content__heading">
@@ -89,23 +78,6 @@ export default function CommandCenter() {
           <Icon name="bolt" size={15} />
           New Optimization Run
         </Link>
-      </section>
-
-      <section className="card section-gap">
-        <div className="section-header">
-          <div>
-            <div className="section-header__title-row">
-              <span className="section-header__icon">
-                <Icon name="sun" size={16} />
-              </span>
-              <h2>Energy Flow</h2>
-            </div>
-            <p className="section-header__subtitle">
-              {liveHour ? "Live dispatch snapshot from the most recent run's first forecast hour." : "How solar generation moves through the grid, panel to home."}
-            </p>
-          </div>
-        </div>
-        <EnergyFlowDiagram hour={liveHour} socPct={socPct} />
       </section>
 
       {runsLoading && !latestAny ? (

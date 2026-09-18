@@ -1788,7 +1788,7 @@ table.data-table th {
 }
 
 /* ---------------------------------------------------------------- */
-/* Energy flow diagram (Command Center)                              */
+/* Energy flow diagram (Optimization Plan)                           */
 /* ---------------------------------------------------------------- */
 
 @keyframes ef-sun-pulse {
@@ -1844,10 +1844,66 @@ table.data-table th {
   }
 }
 
+.energy-flow__scrubber {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.energy-flow__scrubber-label {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+  min-width: 34px;
+  text-align: center;
+}
+
+.energy-flow__slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--surface-3);
+  margin: 6px 0 8px;
+  cursor: pointer;
+}
+
+.energy-flow__slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 2px solid var(--surface);
+  box-shadow: 0 0 0 2px var(--accent-soft);
+  cursor: pointer;
+  transition: transform var(--ease-fast);
+}
+
+.energy-flow__slider::-webkit-slider-thumb:hover {
+  transform: scale(1.15);
+}
+
+.energy-flow__slider::-moz-range-thumb {
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 2px solid var(--surface);
+  box-shadow: 0 0 0 2px var(--accent-soft);
+  cursor: pointer;
+}
+
 .energy-flow {
   position: relative;
   width: 100%;
-  padding-top: 58%;
+  padding-top: 46%;
+  min-height: 320px;
+  border-radius: var(--radius-md);
+  background: radial-gradient(circle at 50% 4%, var(--accent-soft) 0%, transparent 55%);
 }
 
 .energy-flow__lines {
@@ -1931,19 +1987,38 @@ table.data-table th {
   animation: ef-sun-spin 18s linear infinite;
 }
 
+.energy-flow__chip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+  padding: 10px 14px;
+  transition: box-shadow var(--ease-med), border-color var(--ease-med), transform var(--ease-med);
+}
+
+.energy-flow__node:hover .energy-flow__chip {
+  box-shadow: var(--shadow-md);
+  border-color: var(--accent);
+  transform: translateY(-2px);
+}
+
 .energy-flow__node--panels {
   left: 50%;
-  top: 29%;
+  top: 27%;
 }
 
 .energy-flow__panel-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 3px;
-  padding: 8px;
+  padding: 6px;
   background: var(--surface-2);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  border-radius: 5px;
 }
 
 .energy-flow__panel-cell {
@@ -1978,12 +2053,20 @@ table.data-table th {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 34px;
-  height: 34px;
+  width: 38px;
+  height: 38px;
   border-radius: 50%;
   background: var(--accent-soft);
   color: var(--accent);
   animation: ef-inverter-pulse 1.8s ease-in-out infinite;
+}
+
+.energy-flow__inverter-caption {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
 .energy-flow__outputs {
@@ -1992,27 +2075,64 @@ table.data-table th {
 }
 
 .energy-flow__node--battery {
-  left: 18%;
-  top: 88%;
+  left: 16%;
+  top: 87%;
 }
 
 .energy-flow__node--home {
   left: 50%;
-  top: 88%;
+  top: 87%;
 }
 
 .energy-flow__node--grid {
-  left: 82%;
-  top: 88%;
+  left: 84%;
+  top: 87%;
 }
 
-.energy-flow__outputs .energy-flow__node > svg {
+.energy-flow__outputs .energy-flow__chip > svg {
   color: var(--text-secondary);
 }
 
-.energy-flow__node--battery.is-charging svg,
-.energy-flow__node--battery.is-discharging svg {
+.energy-flow__node--battery.is-charging .energy-flow__chip,
+.energy-flow__node--battery.is-discharging .energy-flow__chip {
+  border-color: var(--accent);
+}
+
+.energy-flow__node--battery.is-charging .energy-flow__chip > svg,
+.energy-flow__node--battery.is-discharging .energy-flow__chip > svg {
   color: var(--accent);
+}
+
+.energy-flow__flow-tag {
+  display: inline-block;
+  margin-top: 2px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 9.5px;
+  font-weight: 700;
+  text-transform: none;
+  letter-spacing: normal;
+  white-space: nowrap;
+}
+
+.energy-flow__flow-tag--charge {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.energy-flow__flow-tag--discharge {
+  background: var(--status-info-soft);
+  color: var(--status-info);
+}
+
+.energy-flow__flow-tag--shed {
+  background: var(--status-warning-soft);
+  color: var(--status-warning);
+}
+
+.energy-flow__flow-tag--spill {
+  background: var(--status-critical-soft);
+  color: var(--status-critical);
 }
 
 .energy-flow__battery-bar {
@@ -2033,6 +2153,10 @@ table.data-table th {
 }
 
 .energy-flow__label {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
   font-size: 10.5px;
   font-weight: 600;
   color: var(--text-muted);
@@ -2051,7 +2175,7 @@ table.data-table th {
 .energy-flow__demo-badge {
   position: absolute;
   right: 4px;
-  bottom: -2px;
+  bottom: -26px;
   font-size: 10.5px;
   color: var(--text-muted);
   font-style: italic;
@@ -2059,7 +2183,8 @@ table.data-table th {
 
 @media (max-width: 640px) {
   .energy-flow {
-    padding-top: 105%;
+    padding-top: 0;
+    min-height: 560px;
   }
 
   .energy-flow__demo-badge {
