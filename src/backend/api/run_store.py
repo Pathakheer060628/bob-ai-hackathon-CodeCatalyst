@@ -15,8 +15,10 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any
 
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from backend.agents.orchestrator import ScenarioConfig
 from backend.api.db import SessionLocal, init_db
 from backend.api.models import Run
 from backend.tools.load_balancing import LoadBalanceConfig
@@ -31,6 +33,7 @@ class RunRecord:
     lookback_days: int
     horizon_hours: int
     load_balance_config: Any = None
+    scenario: ScenarioConfig | None = None
     result: dict | None = None
     progress_log: list = field(default_factory=list)
     error: str | None = None
@@ -48,6 +51,18 @@ def _config_from_dict(payload: dict | None) -> LoadBalanceConfig | None:
     return LoadBalanceConfig(**payload)
 
 
+def _scenario_to_dict(scenario: ScenarioConfig | None) -> dict | None:
+    if scenario is None:
+        return None
+    return dataclasses.asdict(scenario)
+
+
+def _scenario_from_dict(payload: dict | None) -> ScenarioConfig | None:
+    if payload is None:
+        return None
+    return ScenarioConfig(**payload)
+
+
 def _row_to_record(row: Run) -> RunRecord:
     return RunRecord(
         run_id=row.id,
@@ -57,6 +72,7 @@ def _row_to_record(row: Run) -> RunRecord:
         lookback_days=row.lookback_days,
         horizon_hours=row.horizon_hours,
         load_balance_config=_config_from_dict(row.config),
+        scenario=_scenario_from_dict(row.scenario),
         result=row.result,
         progress_log=list(row.progress_log or []),
         error=row.error,
@@ -84,6 +100,7 @@ class RunStore:
         lookback_days: int,
         horizon_hours: int,
         load_balance_config: LoadBalanceConfig | None = None,
+        scenario: ScenarioConfig | None = None,
     ) -> RunRecord:
         run_id = uuid.uuid4().hex[:12]
         with self._session() as session:
@@ -95,6 +112,7 @@ class RunStore:
                 lookback_days=lookback_days,
                 horizon_hours=horizon_hours,
                 config=_config_to_dict(load_balance_config),
+                scenario=_scenario_to_dict(scenario),
                 result=None,
                 progress_log=[],
                 error=None,
@@ -111,9 +129,14 @@ class RunStore:
 
     def list_recent(self, limit: int = 25) -> list[RunRecord]:
         with self._session() as session:
+            # created_at alone isn't a reliable sort key: two runs created in rapid
+            # succession (e.g. back-to-back API calls) can land on the same
+            # microsecond-resolution timestamp. SQLite's implicit rowid always
+            # increases with insertion order, so it's used as a tiebreaker to keep
+            # "most recent first" deterministic even when timestamps tie.
             rows = (
                 session.query(Run)
-                .order_by(Run.created_at.desc())
+                .order_by(Run.created_at.desc(), text("rowid DESC"))
                 .limit(limit)
                 .all()
             )

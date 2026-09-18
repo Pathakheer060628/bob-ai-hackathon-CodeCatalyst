@@ -1,7 +1,11 @@
 """LangGraph pipeline wiring the deterministic grid-optimisation tools together.
 
-forecast_demand_node -> detect_anomalies_node -> root_cause_node ->
-load_balance_node -> curtailment_node -> narrate_node -> verify_node
+data_quality_node -> [blocked | forecast_node -> anomalies_node ->
+load_balance_node -> curtailment_node -> facts_node -> narrate_node -> verify_node]
+
+The data-quality gate runs first and can short-circuit the run to `blocked` before
+any forecast/optimizer/narrator code sees the data (GridSentinel spec ss20: a run
+must not proceed to optimization on data that fails a hard quality check).
 
 Every node does exactly one job and writes typed results into `GridState`;
 nothing in this file computes a number itself beyond simple aggregation
@@ -12,8 +16,14 @@ API layer can turn that into an SSE progress feed.
 
 from __future__ import annotations
 
+import dataclasses
+import hashlib
+import json
 import operator
+import subprocess
 from dataclasses import dataclass
+from functools import lru_cache
+from pathlib import Path
 from typing import Annotated, Any, TypedDict
 
 import pandas as pd
@@ -22,25 +32,65 @@ from langgraph.graph import END, StateGraph
 from backend.llm.provider import get_provider
 from backend.tools.anomaly_detection import ASSET_COLUMNS, detect_renewable_anomalies
 from backend.tools.curtailment import CurtailmentPlan, minimize_curtailment
-from backend.tools.forecasting import ForecastResult, forecast_demand, forecast_renewable_supply
+from backend.tools.data_quality import DataQualityReport, assess_window_quality
+from backend.tools.facts import Fact, build_fact_ledger
+from backend.tools.forecasting import (
+    BacktestResult,
+    ForecastResult,
+    backtest_demand_forecast,
+    forecast_demand,
+    forecast_renewable_supply,
+)
 from backend.tools.load_balancing import LoadBalanceConfig, LoadBalancePlan, solve_load_balance
 from backend.tools.root_cause import RootCauseFinding, classify_root_cause
 from backend.agents.verifier import VerificationResult, verify_brief
 
 MAX_ANOMALY_FINDINGS = 8
 
+MODEL_VERSIONS = {
+    "forecast": "seasonal-naive-trend-v1",
+    "anomaly_detection": "cusum-seasonal-v1",
+    "root_cause": "rule-based-elimination-v2",
+    "optimizer": "scipy-linprog-highs",
+}
+
+
+@dataclass
+class ScenarioConfig:
+    """A reproducible what-if scenario applied to the forecast outputs (GridSentinel spec ss7).
+
+    Scales the *forecast*, not the raw history, so observed and simulated figures stay
+    clearly separated -- the pipeline never mutates the historical record, and every
+    scaled run is unmistakably logged as simulated in the progress log and manifest.
+    """
+
+    scenario_id: str | None = None
+    renewable_scale: float = 1.0
+    demand_scale: float = 1.0
+    label: str | None = None
+
+    @property
+    def is_active(self) -> bool:
+        return self.renewable_scale != 1.0 or self.demand_scale != 1.0
+
 
 class GridState(TypedDict, total=False):
+    run_id: str
     history: pd.DataFrame
     full_history: pd.DataFrame
     horizon_hours: int
     load_balance_config: LoadBalanceConfig
+    scenario: ScenarioConfig
 
+    data_quality: DataQualityReport
     forecast: ForecastResult
+    forecast_backtest: BacktestResult
     renewable_forecast_mw: list[float]
     anomalies: list[RootCauseFinding]
     load_balance: LoadBalancePlan
     curtailment: CurtailmentPlan
+    facts: list[Fact]
+    manifest: dict[str, Any]
     narrative: str
     narration_provider: str
     verification: VerificationResult
@@ -59,22 +109,80 @@ def default_load_balance_config(history: pd.DataFrame) -> LoadBalanceConfig:
     )
 
 
+def node_data_quality(state: GridState) -> dict:
+    report = assess_window_quality(state["history"])
+    if report.hard_fail:
+        msg = "Data-quality gate BLOCKED this run: " + "; ".join(report.hard_fail_reasons)
+    elif report.warnings:
+        msg = f"Data-quality gate passed with warnings ({report.completeness_score:.0%} complete): " + "; ".join(
+            report.warnings
+        )
+    else:
+        msg = f"Data-quality gate passed: {report.completeness_score:.0%} complete, no issues found."
+    return {"data_quality": report, "progress_log": [msg]}
+
+
+def route_after_data_quality(state: GridState) -> str:
+    return "blocked" if state["data_quality"].hard_fail else "proceed"
+
+
+def node_blocked(state: GridState) -> dict:
+    reasons = "; ".join(state["data_quality"].hard_fail_reasons)
+    return {"progress_log": [f"Run halted before optimization: {reasons}"]}
+
+
+def _apply_scenario(forecast: ForecastResult, renewable_forecast_mw: list[float], scenario: ScenarioConfig):
+    d_scale, r_scale = scenario.demand_scale, scenario.renewable_scale
+    for h in forecast.hourly:
+        h.forecast_mw = round(h.forecast_mw * d_scale, 1)
+        h.baseline_mw = round(h.baseline_mw * d_scale, 1)
+        h.baseline_std_mw = round(h.baseline_std_mw * d_scale, 1)
+        h.upper_bound_mw = round(h.forecast_mw + 1.96 * h.baseline_std_mw, 1)
+        h.lower_bound_mw = round(max(0.0, h.forecast_mw - 1.96 * h.baseline_std_mw), 1)
+        h.spike_severity_std = round(
+            (h.forecast_mw - h.baseline_mw) / h.baseline_std_mw, 2
+        ) if h.baseline_std_mw > 0 else 0.0
+        h.is_spike = bool(h.spike_severity_std > forecast.spike_std_threshold)
+
+    scaled_renewable = [round(v * r_scale, 1) for v in renewable_forecast_mw]
+    return forecast, scaled_renewable
+
+
 def node_forecast(state: GridState) -> dict:
     horizon = state.get("horizon_hours", 24)
     history = state["history"]
     full_history = state["full_history"]
+    scenario = state.get("scenario")
 
     forecast = forecast_demand(history["load_actual_mw"], horizon_hours=horizon)
     renewable_forecast = forecast_renewable_supply(
         full_history, start=history.index.max() + pd.Timedelta(hours=1), horizon_hours=horizon
     )
+    backtest = backtest_demand_forecast(history["load_actual_mw"], horizon_hours=horizon)
+
+    log_lines = [
+        f"Forecast complete: peak {forecast.peak.forecast_mw:,.0f} MW, "
+        f"{len(forecast.spikes)} spike hour(s) flagged."
+    ]
+    if backtest.n_points:
+        log_lines.append(
+            f"Backtest: MAE {backtest.mae:,.0f} MW vs. naive-baseline MAE {backtest.naive_mae:,.0f} MW "
+            f"({backtest.improvement_pct:+.1f}% improvement over {backtest.n_folds} fold(s))."
+        )
+
+    if scenario and scenario.is_active:
+        forecast, renewable_forecast = _apply_scenario(forecast, renewable_forecast, scenario)
+        log_lines.append(
+            f"SIMULATED SCENARIO applied (scenario_id={scenario.scenario_id}): "
+            f"demand x{scenario.demand_scale}, renewable x{scenario.renewable_scale} -- "
+            "figures from this point on are simulated, not observed history."
+        )
+
     return {
         "forecast": forecast,
         "renewable_forecast_mw": renewable_forecast,
-        "progress_log": [
-            f"Forecast complete: peak {forecast.peak.forecast_mw:,.0f} MW, "
-            f"{len(forecast.spikes)} spike hour(s) flagged."
-        ],
+        "forecast_backtest": backtest,
+        "progress_log": log_lines,
     }
 
 
@@ -124,6 +232,57 @@ def node_curtailment(state: GridState) -> dict:
     return {"curtailment": plan, "progress_log": [msg]}
 
 
+@lru_cache(maxsize=1)
+def _git_sha() -> str:
+    try:
+        repo_root = Path(__file__).resolve().parents[3]
+        return (
+            subprocess.check_output(
+                ["git", "rev-parse", "--short", "HEAD"], cwd=repo_root, stderr=subprocess.DEVNULL
+            )
+            .decode()
+            .strip()
+        )
+    except Exception:
+        return "unknown"
+
+
+def _config_hash(config: LoadBalanceConfig | None) -> str:
+    if config is None:
+        return "default"
+    payload = json.dumps(dataclasses.asdict(config), sort_keys=True, default=str)
+    return hashlib.sha256(payload.encode()).hexdigest()[:12]
+
+
+def node_facts(state: GridState) -> dict:
+    history = state["history"]
+    full_history = state["full_history"]
+    scenario = state.get("scenario")
+
+    facts = build_fact_ledger(state, run_id=state.get("run_id") or "run")
+    manifest = {
+        "data_window": {
+            "start": history.index.min().isoformat(),
+            "end": history.index.max().isoformat(),
+            "rows": int(len(history)),
+        },
+        "full_dataset_window": {
+            "start": full_history.index.min().isoformat(),
+            "end": full_history.index.max().isoformat(),
+        },
+        "model_versions": MODEL_VERSIONS,
+        "code_version": _git_sha(),
+        "verifier_version": "regex-numeric-tolerance-v1",
+        "config_hash": _config_hash(state.get("load_balance_config")),
+        "scenario": dataclasses.asdict(scenario) if scenario else None,
+    }
+    return {
+        "facts": facts,
+        "manifest": manifest,
+        "progress_log": [f"Fact ledger built: {len(facts)} provenance-tagged fact(s)."],
+    }
+
+
 def _narration_context(state: GridState) -> dict:
     return {
         "forecast": state.get("forecast"),
@@ -155,18 +314,26 @@ def node_verify(state: GridState) -> dict:
 
 def build_graph():
     graph = StateGraph(GridState)
+    graph.add_node("data_quality", node_data_quality)
+    graph.add_node("blocked", node_blocked)
     graph.add_node("forecast", node_forecast)
     graph.add_node("anomalies", node_detect_anomalies_and_root_cause)
     graph.add_node("load_balance", node_load_balance)
     graph.add_node("curtailment", node_curtailment)
+    graph.add_node("facts", node_facts)
     graph.add_node("narrate", node_narrate)
     graph.add_node("verify", node_verify)
 
-    graph.set_entry_point("forecast")
+    graph.set_entry_point("data_quality")
+    graph.add_conditional_edges(
+        "data_quality", route_after_data_quality, {"proceed": "forecast", "blocked": "blocked"}
+    )
+    graph.add_edge("blocked", END)
     graph.add_edge("forecast", "anomalies")
     graph.add_edge("anomalies", "load_balance")
     graph.add_edge("load_balance", "curtailment")
-    graph.add_edge("curtailment", "narrate")
+    graph.add_edge("curtailment", "facts")
+    graph.add_edge("facts", "narrate")
     graph.add_edge("narrate", "verify")
     graph.add_edge("verify", END)
     return graph.compile()
@@ -178,34 +345,35 @@ class PipelineRequest:
     full_history: pd.DataFrame
     horizon_hours: int = 24
     load_balance_config: LoadBalanceConfig | None = None
+    scenario: ScenarioConfig | None = None
+    run_id: str | None = None
 
 
-def run_pipeline(request: PipelineRequest) -> GridState:
-    app = build_graph()
+def _initial_state(request: PipelineRequest) -> GridState:
     initial: GridState = {
         "history": request.history,
         "full_history": request.full_history,
         "horizon_hours": request.horizon_hours,
         "progress_log": [],
     }
+    if request.run_id:
+        initial["run_id"] = request.run_id
     if request.load_balance_config:
         initial["load_balance_config"] = request.load_balance_config
-    result: GridState = app.invoke(initial)
+    if request.scenario:
+        initial["scenario"] = request.scenario
+    return initial
+
+
+def run_pipeline(request: PipelineRequest) -> GridState:
+    app = build_graph()
+    result: GridState = app.invoke(_initial_state(request))
     return result
 
 
 def stream_pipeline(request: PipelineRequest):
     """Yields (node_name, partial_state_update) for each completed node -- for SSE progress."""
     app = build_graph()
-    initial: GridState = {
-        "history": request.history,
-        "full_history": request.full_history,
-        "horizon_hours": request.horizon_hours,
-        "progress_log": [],
-    }
-    if request.load_balance_config:
-        initial["load_balance_config"] = request.load_balance_config
-
-    for event in app.stream(initial):
+    for event in app.stream(_initial_state(request)):
         for node_name, update in event.items():
             yield node_name, update

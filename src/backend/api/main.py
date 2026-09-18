@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import uuid
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 
@@ -12,7 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from sse_starlette.sse import EventSourceResponse
 
-from backend.agents.orchestrator import PipelineRequest, stream_pipeline
+from backend.agents.orchestrator import PipelineRequest, ScenarioConfig, stream_pipeline
 from backend.api.db import init_db
 from backend.api.run_store import run_store
 from backend.api.schemas import (
@@ -70,17 +71,30 @@ def _resolve_window(payload: RunCreateRequest):
     return full_history, history
 
 
+def _to_scenario_config(payload: RunCreateRequest) -> ScenarioConfig | None:
+    if payload.scenario is None:
+        return None
+    return ScenarioConfig(
+        scenario_id=f"scn_{uuid.uuid4().hex[:8]}",
+        renewable_scale=payload.scenario.renewable_scale,
+        demand_scale=payload.scenario.demand_scale,
+        label=payload.scenario.label,
+    )
+
+
 @app.post("/api/runs")
 def create_run(payload: RunCreateRequest):
     _, history = _resolve_window(payload)
     peak_load = float(history["load_actual_mw"].max())
     config = to_load_balance_config(payload.load_balance_config, peak_load)
+    scenario = _to_scenario_config(payload)
 
     record = run_store.create(
         window_end=payload.window_end,
         lookback_days=payload.lookback_days,
         horizon_hours=payload.horizon_hours,
         load_balance_config=config,
+        scenario=scenario,
     )
     return {"run_id": record.run_id, "status": record.status}
 
@@ -111,6 +125,8 @@ async def stream_run(run_id: str):
                 full_history=full_history,
                 horizon_hours=record.horizon_hours,
                 load_balance_config=record.load_balance_config,
+                scenario=record.scenario,
+                run_id=run_id,
             )
 
             final_state: dict = {}
@@ -144,6 +160,33 @@ def get_run(run_id: str):
         "result": record.result,
         "error": record.error,
     }
+
+
+@app.get("/api/runs/{run_id}/facts/{fact_id}")
+def get_run_fact(run_id: str, fact_id: str):
+    """Provenance lookup: trace any number shown in a brief back to its calculation
+    and inputs (GridSentinel spec ss10, ss13 `/api/v1/facts/{fact_id}`)."""
+    record = run_store.get(run_id)
+    if record is None:
+        raise HTTPException(status_code=404, detail="Run not found")
+    facts = (record.result or {}).get("facts") or []
+    for fact in facts:
+        if fact["fact_id"] == fact_id:
+            return fact
+    raise HTTPException(status_code=404, detail="Fact not found on this run")
+
+
+@app.get("/api/runs/{run_id}/manifest")
+def get_run_manifest(run_id: str):
+    """Reproducibility manifest for a run: data window, model/code versions, config
+    hash and scenario parameters (GridSentinel spec ss11)."""
+    record = run_store.get(run_id)
+    if record is None:
+        raise HTTPException(status_code=404, detail="Run not found")
+    manifest = (record.result or {}).get("manifest")
+    if manifest is None:
+        raise HTTPException(status_code=409, detail="Run has no manifest yet")
+    return {"run_id": run_id, **manifest}
 
 
 @app.get("/api/runs/{run_id}/report.pdf")

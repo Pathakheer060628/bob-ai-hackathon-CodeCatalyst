@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from backend.tools.forecasting import forecast_demand, forecast_renewable_supply
+from backend.tools.forecasting import backtest_demand_forecast, forecast_demand, forecast_renewable_supply
 
 
 def _synthetic_load_series(weeks: int = 10) -> pd.Series:
@@ -74,3 +74,22 @@ def test_forecast_renewable_supply_nonnegative():
     forecast = forecast_renewable_supply(df, start=df.index.max() + pd.Timedelta(hours=1), horizon_hours=24)
     assert len(forecast) == 24
     assert all(v >= 0 for v in forecast)
+
+
+def test_backtest_reports_accuracy_against_naive_baseline():
+    series = _synthetic_load_series(weeks=10)
+    result = backtest_demand_forecast(series, horizon_hours=24, n_folds=3)
+    assert result.n_points > 0
+    assert result.n_folds > 0
+    assert result.mae >= 0
+    assert result.rmse >= result.mae * 0.5  # RMSE is never far below MAE for the same error set
+    # the seasonal-trend model should beat (or at least not badly trail) a naive
+    # week-ago baseline on this clean synthetic series
+    assert result.improvement_pct > -50
+
+
+def test_backtest_returns_empty_result_when_history_too_short():
+    short_series = _synthetic_load_series(weeks=1).iloc[:100]
+    result = backtest_demand_forecast(short_series, horizon_hours=24)
+    assert result.n_points == 0
+    assert result.mae == 0.0

@@ -41,10 +41,17 @@ class CurtailmentPlan:
 def minimize_curtailment(
     demand_mw: list[float], renewable_mw: list[float], config: LoadBalanceConfig
 ) -> CurtailmentPlan:
+    # storage_initial_soc_mwh must be zeroed along with capacity/rate: the SOC
+    # balance equation in solve_load_balance() requires soc[0] == storage_initial_soc_mwh,
+    # but with storage_capacity_mwh=0 the soc variable is bounded to [0, 0] -- leaving a
+    # nonzero initial SOC here makes the equation unsatisfiable and the baseline LP
+    # infeasible on every run, which silently zeroed out curtailment_avoided_mwh (or,
+    # once the optimized plan curtails anything, makes it go negative).
     baseline_config = replace(
         config,
         storage_capacity_mwh=0.0,
         storage_max_rate_mw=0.0,
+        storage_initial_soc_mwh=0.0,
         max_demand_response_fraction=0.0,
     )
     baseline = solve_load_balance(demand_mw, renewable_mw, baseline_config)

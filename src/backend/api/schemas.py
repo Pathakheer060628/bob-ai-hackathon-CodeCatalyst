@@ -24,11 +24,21 @@ class LoadBalanceConfigIn(BaseModel):
     max_demand_response_fraction: float = 0.05
 
 
+class ScenarioConfigIn(BaseModel):
+    """What-if scenario (GridSentinel spec ss7): scales the forecast to demonstrate
+    oversupply/curtailment value even when the underlying historical window is calm."""
+
+    renewable_scale: float = Field(1.0, ge=0.1, le=5.0)
+    demand_scale: float = Field(1.0, ge=0.3, le=3.0)
+    label: str | None = None
+
+
 class RunCreateRequest(BaseModel):
     window_end: str = Field(..., description="ISO timestamp: the 'as-of-now' point for the run")
     lookback_days: int = Field(30, ge=7, le=365)
     horizon_hours: int = Field(24, ge=1, le=72)
     load_balance_config: LoadBalanceConfigIn | None = None
+    scenario: ScenarioConfigIn | None = None
 
 
 def to_load_balance_config(payload: LoadBalanceConfigIn | None, peak_load_mw: float) -> LoadBalanceConfig | None:
@@ -84,9 +94,57 @@ def serialize_anomalies(findings) -> list[dict[str, Any]]:
                 "category": f.category,
                 "label": f.label,
                 "evidence": f.evidence,
+                "confidence": f.confidence,
             }
         )
     return out
+
+
+def serialize_data_quality(report) -> dict[str, Any] | None:
+    if report is None:
+        return None
+    return {
+        "expected_hours": report.expected_hours,
+        "actual_hours": report.actual_hours,
+        "completeness_score": report.completeness_score,
+        "duplicate_count": report.duplicate_count,
+        "max_gap_hours": report.max_gap_hours,
+        "negative_load_hours": report.negative_load_hours,
+        "negative_generation_hours": report.negative_generation_hours,
+        "warnings": report.warnings,
+        "hard_fail": report.hard_fail,
+        "hard_fail_reasons": report.hard_fail_reasons,
+    }
+
+
+def serialize_backtest(backtest) -> dict[str, Any] | None:
+    if backtest is None:
+        return None
+    return {
+        "mae": backtest.mae,
+        "rmse": backtest.rmse,
+        "mape": backtest.mape,
+        "naive_mae": backtest.naive_mae,
+        "improvement_pct": backtest.improvement_pct,
+        "n_points": backtest.n_points,
+        "n_folds": backtest.n_folds,
+        "horizon_hours": backtest.horizon_hours,
+    }
+
+
+def serialize_facts(facts) -> list[dict[str, Any]]:
+    return [
+        {
+            "fact_id": f.fact_id,
+            "metric": f.metric,
+            "value": f.value,
+            "unit": f.unit,
+            "calculation": f.calculation,
+            "time_window": f.time_window,
+            "entity_scope": f.entity_scope,
+        }
+        for f in facts or []
+    ]
 
 
 def serialize_load_balance(plan) -> dict[str, Any]:
@@ -161,11 +219,18 @@ def serialize_run_summary(record: Any) -> dict[str, Any]:
         "curtailment_avoided_mwh": None,
         "verification_status": None,
         "anomaly_count": None,
+        "brief_status": None,
+        "data_quality_score": None,
     }
 
     result = record.result
     if not result:
         return summary
+
+    summary["brief_status"] = result.get("status")
+
+    data_quality = result.get("data_quality") or {}
+    summary["data_quality_score"] = data_quality.get("completeness_score")
 
     forecast = result.get("forecast") or {}
     peak = forecast.get("peak") or {}
@@ -189,13 +254,39 @@ def serialize_run_summary(record: Any) -> dict[str, Any]:
 
 
 def serialize_run_result(state: dict) -> dict[str, Any]:
-    return {
-        "forecast": serialize_forecast(state["forecast"]),
-        "anomalies": serialize_anomalies(state["anomalies"]),
-        "load_balance": serialize_load_balance(state["load_balance"]),
-        "curtailment": serialize_curtailment(state["curtailment"]),
-        "narrative": state["narrative"],
-        "narration_provider": state["narration_provider"],
-        "verification": serialize_verification(state["verification"]),
-        "progress_log": state["progress_log"],
+    """Turn a completed (or blocked) GridState into the JSON payload for the API/SSE.
+
+    A run whose data-quality gate hard-failed never reaches the optimizer or narrator
+    (GridSentinel spec ss20: "A new run cannot proceed to optimization when required
+    data fails hard quality checks") -- this returns a minimal "blocked" payload for
+    that case instead of indexing keys that were never computed.
+    """
+    data_quality = state.get("data_quality")
+    blocked = bool(data_quality and data_quality.hard_fail)
+
+    result: dict[str, Any] = {
+        "status": "blocked" if blocked else None,
+        "data_quality": serialize_data_quality(data_quality),
+        "progress_log": state.get("progress_log", []),
     }
+    if blocked:
+        return result
+
+    verification = state["verification"]
+    result.update(
+        {
+            "forecast": serialize_forecast(state["forecast"]),
+            "forecast_backtest": serialize_backtest(state.get("forecast_backtest")),
+            "anomalies": serialize_anomalies(state["anomalies"]),
+            "load_balance": serialize_load_balance(state["load_balance"]),
+            "curtailment": serialize_curtailment(state["curtailment"]),
+            "facts": serialize_facts(state.get("facts")),
+            "manifest": state.get("manifest"),
+            "scenario": state.get("manifest", {}).get("scenario") if state.get("manifest") else None,
+            "narrative": state["narrative"],
+            "narration_provider": state["narration_provider"],
+            "verification": serialize_verification(verification),
+            "status": "verified" if verification.trusted else "degraded",
+        }
+    )
+    return result
