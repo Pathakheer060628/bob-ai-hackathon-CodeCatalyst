@@ -52,6 +52,66 @@ const SLIDES = [
   },
 ];
 
+// Abstract line-art backdrops, one per slide theme. Drawn with currentColor
+// so they inherit --hero-accent and recolor automatically with the theme.
+function PipelineArt() {
+  const nodes = [
+    [80, 60], [180, 40], [260, 110], [150, 150], [340, 70], [420, 140],
+    [500, 60], [560, 150], [260, 220], [400, 240], [500, 260], [120, 240],
+  ];
+  const edges = [[0, 1], [1, 2], [2, 3], [3, 0], [2, 4], [4, 5], [5, 6], [6, 7], [3, 8], [8, 9], [9, 10], [8, 11]];
+  return (
+    <svg viewBox="0 0 600 320" className="hero__art-svg" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+      <g stroke="currentColor" strokeWidth="1">
+        {edges.map(([a, b], i) => (
+          <line key={i} x1={nodes[a][0]} y1={nodes[a][1]} x2={nodes[b][0]} y2={nodes[b][1]} />
+        ))}
+      </g>
+      <g fill="currentColor">
+        {nodes.map(([x, y], i) => (
+          <circle key={i} cx={x} cy={y} r={i % 3 === 0 ? 5 : 3} />
+        ))}
+      </g>
+    </svg>
+  );
+}
+
+function SolarArt() {
+  return (
+    <svg viewBox="0 0 600 320" className="hero__art-svg" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+      <circle cx="500" cy="70" r="34" fill="currentColor" opacity="0.6" />
+      <line x1="600" y1="230" x2="260" y2="230" stroke="currentColor" strokeWidth="1.5" />
+      {[0, 1, 2].map((r) => (
+        <g key={r} transform={`translate(${300 + r * 90} ${230 - r * 10}) rotate(-18)`}>
+          {Array.from({ length: 4 }).map((_, c) => (
+            <rect key={c} x={c * 34} y="0" width="28" height="60" rx="2" fill="none" stroke="currentColor" strokeWidth="1.5" />
+          ))}
+        </g>
+      ))}
+    </svg>
+  );
+}
+
+function ImpactArt() {
+  const bars = [40, 70, 55, 95, 75];
+  return (
+    <svg viewBox="0 0 600 320" className="hero__art-svg" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+      <line x1="260" y1="260" x2="600" y2="260" stroke="currentColor" strokeWidth="1.5" />
+      {bars.map((h, i) => (
+        <rect key={i} x={300 + i * 55} y={260 - h * 1.6} width="34" height={h * 1.6} rx="3" fill="currentColor" opacity={0.35 + i * 0.09} />
+      ))}
+      <circle cx="580" cy="60" r="26" fill="none" stroke="currentColor" strokeWidth="2" />
+      <path d="M568 60 l8 8 16 -18" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+const ART = {
+  pipeline: PipelineArt,
+  solar: SolarArt,
+  impact: ImpactArt,
+};
+
 function FlowVisual({ steps }) {
   return (
     <div className="hero__flow" aria-hidden="true">
@@ -100,7 +160,9 @@ export default function HeroCarousel() {
 
   return (
     <section className="hero" onMouseEnter={() => setPlaying(false)} onMouseLeave={() => setPlaying(true)}>
-      {SLIDES.map((slide, i) => (
+      {SLIDES.map((slide, i) => {
+        const Art = ART[slide.theme];
+        return (
         <div
           key={slide.id}
           className={`hero__slide hero__slide--${slide.theme} ${i === index ? "is-active" : ""}`}
@@ -109,6 +171,9 @@ export default function HeroCarousel() {
           <div className="hero__backdrop">
             <span className="hero__glow hero__glow--a" />
             <span className="hero__glow hero__glow--b" />
+            <div className="hero__art">
+              <Art />
+            </div>
           </div>
 
           <FlowVisual steps={slide.steps} />
@@ -127,7 +192,8 @@ export default function HeroCarousel() {
             </div>
           </div>
         </div>
-      ))}
+        );
+      })}
 
       <div className="hero__controls">
         <button type="button" className="hero__control-btn" onClick={() => setPlaying((p) => !p)} aria-label={playing ? "Pause slideshow" : "Play slideshow"}>
