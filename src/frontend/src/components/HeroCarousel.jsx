@@ -153,6 +153,15 @@ const ART = {
   impact: ImpactArt,
 };
 
+// Same accent tokens used per --hero-accent in the CSS theme classes below,
+// duplicated here so the nav controls (outside .hero__slide) can be themed
+// to match the active slide too.
+const ACCENT_VAR = {
+  pipeline: "var(--accent)",
+  solar: "var(--series-2)",
+  impact: "var(--status-good)",
+};
+
 function FlowVisual({ steps }) {
   return (
     <div className="hero__flow" aria-hidden="true">
@@ -200,7 +209,12 @@ export default function HeroCarousel() {
   const goTo = (next) => setIndex((next + SLIDES.length) % SLIDES.length);
 
   return (
-    <section className="hero" onMouseEnter={() => setPlaying(false)} onMouseLeave={() => setPlaying(true)}>
+    <section
+      className="hero"
+      style={{ "--hero-accent": ACCENT_VAR[SLIDES[index].theme] }}
+      onMouseEnter={() => setPlaying(false)}
+      onMouseLeave={() => setPlaying(true)}
+    >
       {SLIDES.map((slide, i) => {
         const Art = ART[slide.theme];
         return (

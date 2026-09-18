@@ -2335,14 +2335,15 @@ table.data-table th {
 }
 
 .hero__art {
-  /* Fixed box anchored bottom-right -- well clear of the flow row pinned in
-     the top-right corner, so the two layers never overlap. */
+  /* Fixed box anchored bottom-right -- well clear of both the flow row
+     pinned top-right and the nav controls pinned bottom-right, so none of
+     the three layers ever overlap. */
   position: absolute;
   right: 20px;
-  bottom: 20px;
+  bottom: 76px;
   width: 46%;
   max-width: 480px;
-  height: 250px;
+  height: 220px;
   color: var(--hero-accent);
   opacity: 0.4;
 }
@@ -2519,15 +2520,15 @@ table.data-table th {
   border-radius: 50%;
   background: color-mix(in srgb, var(--surface) 65%, transparent);
   border: 1px solid var(--border-strong);
-  color: var(--text-primary);
+  color: var(--hero-accent, var(--text-primary));
   cursor: pointer;
   backdrop-filter: blur(4px);
-  transition: background var(--ease-fast), border-color var(--ease-fast), transform var(--ease-fast);
+  transition: background var(--ease-fast), border-color var(--ease-fast), color var(--ease-fast), transform var(--ease-fast);
 }
 
 .hero__control-btn:hover {
   background: var(--surface-2);
-  border-color: var(--accent);
+  border-color: var(--hero-accent, var(--accent));
   transform: scale(1.06);
 }
 
@@ -2550,7 +2551,7 @@ table.data-table th {
 
 .hero__dot.is-active {
   width: 20px;
-  background: var(--accent);
+  background: var(--hero-accent, var(--accent));
 }
 
 @media (max-width: 900px) {
