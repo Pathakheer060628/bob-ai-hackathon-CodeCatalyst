@@ -22,12 +22,12 @@ export default function Header({ datasetInfo, backendStatus, activeStatus, onMen
       <div className="topbar__center">
         <div className="dataset-badge-row" style={{ marginBottom: 0 }}>
           <span className="status-pill status-pill--historical" title="This system runs against a fixed historical extract, never live telemetry">
-            <Icon name="layers" size={13} />
+            <Icon name="layers" size={11} />
             Historical Simulation (2017&ndash;2019)
           </span>
           {datasetInfo && (
             <div className="topbar__dataset" title={`${datasetInfo.source} (${datasetInfo.license})`}>
-              <Icon name="fileText" size={14} />
+              <Icon name="fileText" size={12} />
               <span>
                 {datasetInfo.source} &middot; {datasetInfo.license}
               </span>
@@ -56,10 +56,10 @@ export default function Header({ datasetInfo, backendStatus, activeStatus, onMen
           aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
           title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
         >
-          <Icon name={theme === "dark" ? "sun" : "moon"} size={16} />
+          <Icon name={theme === "dark" ? "sun" : "moon"} size={13} />
         </button>
         <span className="topbar__avatar" aria-label="User">
-          <Icon name="user" size={16} />
+          <Icon name="user" size={13} />
         </span>
       </div>
     </header>
