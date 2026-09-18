@@ -1786,3 +1786,286 @@ table.data-table th {
     grid-auto-rows: auto;
   }
 }
+
+/* ---------------------------------------------------------------- */
+/* Energy flow diagram (Command Center)                              */
+/* ---------------------------------------------------------------- */
+
+@keyframes ef-sun-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.55;
+  }
+  50% {
+    transform: scale(1.45);
+    opacity: 0.12;
+  }
+}
+
+@keyframes ef-sun-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes ef-dash-flow {
+  to {
+    stroke-dashoffset: -140;
+  }
+}
+
+@keyframes ef-glint {
+  0% {
+    transform: translateX(-140%) rotate(20deg);
+  }
+  100% {
+    transform: translateX(260%) rotate(20deg);
+  }
+}
+
+@keyframes ef-inverter-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 var(--accent-soft-strong);
+  }
+  50% {
+    box-shadow: 0 0 0 8px transparent;
+  }
+}
+
+@keyframes ef-battery-glow {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 var(--status-good-soft);
+  }
+  50% {
+    box-shadow: 0 0 0 6px transparent;
+  }
+}
+
+.energy-flow {
+  position: relative;
+  width: 100%;
+  padding-top: 58%;
+}
+
+.energy-flow__lines {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.energy-flow__path {
+  fill: none;
+  stroke: var(--series-2);
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-dasharray: 4 6;
+  opacity: 0.85;
+  animation: ef-dash-flow 1.1s linear infinite;
+  vector-effect: non-scaling-stroke;
+}
+
+.energy-flow__path--sun {
+  stroke: var(--series-2);
+}
+
+.energy-flow__path--panel {
+  stroke: var(--series-2);
+}
+
+.energy-flow__path--battery {
+  stroke: var(--accent);
+}
+
+.energy-flow__path--home {
+  stroke: var(--series-1);
+}
+
+.energy-flow__path--grid {
+  stroke: var(--status-good);
+}
+
+.energy-flow__path--spill {
+  stroke: var(--status-critical);
+  animation-duration: 0.6s;
+}
+
+.energy-flow__node {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 3px;
+}
+
+.energy-flow__node--sun {
+  left: 50%;
+  top: 8%;
+}
+
+.energy-flow__sun-glow {
+  position: absolute;
+  inset: -6px;
+  border-radius: 50%;
+  background: var(--series-2);
+  animation: ef-sun-pulse 2.2s ease-in-out infinite;
+  z-index: 0;
+}
+
+.energy-flow__sun-icon {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--status-warning-soft);
+  color: var(--status-warning);
+  animation: ef-sun-spin 18s linear infinite;
+}
+
+.energy-flow__node--panels {
+  left: 50%;
+  top: 29%;
+}
+
+.energy-flow__panel-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 3px;
+  padding: 8px;
+  background: var(--surface-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+}
+
+.energy-flow__panel-cell {
+  position: relative;
+  width: 16px;
+  height: 12px;
+  border-radius: 2px;
+  background: linear-gradient(135deg, var(--accent), var(--status-info));
+  overflow: hidden;
+}
+
+.energy-flow__panel-cell::after {
+  content: "";
+  position: absolute;
+  top: -50%;
+  left: -20%;
+  width: 30%;
+  height: 200%;
+  background: rgba(255, 255, 255, 0.55);
+  transform: translateX(-140%) rotate(20deg);
+  animation: ef-glint 2.6s ease-in-out infinite;
+}
+
+.energy-flow__node--inverter {
+  left: 50%;
+  top: 52%;
+}
+
+.energy-flow__inverter-icon {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--accent);
+  animation: ef-inverter-pulse 1.8s ease-in-out infinite;
+}
+
+.energy-flow__outputs {
+  position: absolute;
+  inset: 0;
+}
+
+.energy-flow__node--battery {
+  left: 18%;
+  top: 88%;
+}
+
+.energy-flow__node--home {
+  left: 50%;
+  top: 88%;
+}
+
+.energy-flow__node--grid {
+  left: 82%;
+  top: 88%;
+}
+
+.energy-flow__outputs .energy-flow__node > svg {
+  color: var(--text-secondary);
+}
+
+.energy-flow__node--battery.is-charging svg,
+.energy-flow__node--battery.is-discharging svg {
+  color: var(--accent);
+}
+
+.energy-flow__battery-bar {
+  width: 44px;
+  height: 5px;
+  border-radius: 999px;
+  background: var(--surface-3);
+  overflow: hidden;
+  margin-top: 2px;
+}
+
+.energy-flow__battery-fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--status-good);
+  transition: width var(--ease-med);
+}
+
+.energy-flow__label {
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+}
+
+.energy-flow__value {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.energy-flow__demo-badge {
+  position: absolute;
+  right: 4px;
+  bottom: -2px;
+  font-size: 10.5px;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+@media (max-width: 640px) {
+  .energy-flow {
+    padding-top: 105%;
+  }
+
+  .energy-flow__demo-badge {
+    position: static;
+    display: block;
+    margin-top: 12px;
+    text-align: center;
+  }
+}

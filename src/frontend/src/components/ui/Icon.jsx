@@ -28,6 +28,8 @@ const paths = {
   overview: "M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z",
   minus: "M5 12h14",
   plus: "M12 5v14M5 12h14",
+  home: "M3 10.5 12 3l9 7.5M5 9.5V20a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1V9.5",
+  tower: "M12 2 4 22M12 2l8 20M7.5 13h9M9.2 7.5h5.6",
 };
 
 export default function Icon({ name, size = 18, strokeWidth = 1.8, className, style }) {
