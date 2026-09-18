@@ -260,7 +260,7 @@ a number and confirms the verifier catches it.
 
 ## 11. Reference Documents
 
-- `docs/plain-language-overview.md` — the no-jargon version of this document
+- `docs/plain-language-overview.txt` — the no-jargon version of this document
 - `docs/problem-statement.md` — full problem writeup
 - `docs/solution-overview.md` — solution summary and challenge-requirement mapping
 - `docs/architecture.md` — component and request-flow detail
