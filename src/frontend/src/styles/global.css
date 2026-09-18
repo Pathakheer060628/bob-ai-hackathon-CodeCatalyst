@@ -2335,7 +2335,7 @@ table.data-table th {
   position: absolute;
   inset: 0;
   color: var(--hero-accent);
-  opacity: 0.28;
+  opacity: 0.4;
 }
 
 .hero__art-svg {
@@ -2344,7 +2344,7 @@ table.data-table th {
 }
 
 :root[data-theme="light"] .hero__art {
-  opacity: 0.16;
+  opacity: 0.26;
 }
 
 .hero__flow {
@@ -2484,11 +2484,17 @@ table.data-table th {
   background: color-mix(in srgb, var(--hero-accent) 10%, transparent);
 }
 
-.hero__controls {
+.hero__nav {
   position: absolute;
   right: 20px;
   bottom: 20px;
   z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.hero__controls {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -2516,10 +2522,6 @@ table.data-table th {
 }
 
 .hero__dots {
-  position: absolute;
-  right: 108px;
-  bottom: 28px;
-  z-index: 2;
   display: flex;
   align-items: center;
   gap: 6px;
@@ -2561,9 +2563,9 @@ table.data-table th {
     font-size: 26px;
   }
 
-  .hero__dots {
-    right: 20px;
-    bottom: 66px;
+  .hero__nav {
+    right: 16px;
+    bottom: 16px;
   }
 }
 

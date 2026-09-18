@@ -52,26 +52,59 @@ const SLIDES = [
   },
 ];
 
-// Abstract line-art backdrops, one per slide theme. Drawn with currentColor
-// so they inherit --hero-accent and recolor automatically with the theme.
+// Labeled technical-schematic backdrops, one per slide theme — boxes, wires,
+// and connector pins in a blueprint style, drawn with currentColor so they
+// recolor automatically with --hero-accent / the light-dark theme.
+function SchematicBox({ x, y, w, h, label }) {
+  return (
+    <g>
+      <rect x={x} y={y} width={w} height={h} rx="6" fill="none" stroke="currentColor" strokeWidth="1.5" />
+      <text x={x + w / 2} y={y + h / 2 + 4} textAnchor="middle" fontSize="11" fontWeight="700" fill="currentColor" letterSpacing="0.5">
+        {label}
+      </text>
+    </g>
+  );
+}
+
+function SchematicWire({ points }) {
+  return <polyline points={points} fill="none" stroke="currentColor" strokeWidth="1.5" strokeDasharray="4 4" />;
+}
+
+function SchematicPin({ x, y }) {
+  return <circle cx={x} cy={y} r="3" fill="currentColor" />;
+}
+
+function BlueprintGrid({ id }) {
+  return (
+    <>
+      <defs>
+        <pattern id={id} width="26" height="26" patternUnits="userSpaceOnUse">
+          <circle cx="1" cy="1" r="1" fill="currentColor" />
+        </pattern>
+      </defs>
+      <rect width="600" height="320" fill={`url(#${id})`} opacity="0.5" />
+    </>
+  );
+}
+
 function PipelineArt() {
-  const nodes = [
-    [80, 60], [180, 40], [260, 110], [150, 150], [340, 70], [420, 140],
-    [500, 60], [560, 150], [260, 220], [400, 240], [500, 260], [120, 240],
-  ];
-  const edges = [[0, 1], [1, 2], [2, 3], [3, 0], [2, 4], [4, 5], [5, 6], [6, 7], [3, 8], [8, 9], [9, 10], [8, 11]];
   return (
     <svg viewBox="0 0 600 320" className="hero__art-svg" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
-      <g stroke="currentColor" strokeWidth="1">
-        {edges.map(([a, b], i) => (
-          <line key={i} x1={nodes[a][0]} y1={nodes[a][1]} x2={nodes[b][0]} y2={nodes[b][1]} />
-        ))}
-      </g>
-      <g fill="currentColor">
-        {nodes.map(([x, y], i) => (
-          <circle key={i} cx={x} cy={y} r={i % 3 === 0 ? 5 : 3} />
-        ))}
-      </g>
+      <BlueprintGrid id="hg-pipeline" />
+      <SchematicBox x={250} y={64} w={100} h={46} label="INGEST" />
+      <SchematicBox x={400} y={64} w={100} h={46} label="MODEL" />
+      <SchematicBox x={400} y={208} w={100} h={46} label="REPORT" />
+      <SchematicBox x={250} y={208} w={100} h={46} label="PLAN" />
+      <SchematicWire points="350,87 400,87" />
+      <SchematicWire points="450,110 450,208" />
+      <SchematicWire points="400,231 350,231" />
+      <SchematicWire points="300,110 300,208" />
+      <SchematicPin x={400} y={87} />
+      <SchematicPin x={450} y={110} />
+      <SchematicPin x={450} y={208} />
+      <SchematicPin x={300} y={110} />
+      <SchematicPin x={300} y={208} />
+      <SchematicPin x={350} y={231} />
     </svg>
   );
 }
@@ -79,29 +112,34 @@ function PipelineArt() {
 function SolarArt() {
   return (
     <svg viewBox="0 0 600 320" className="hero__art-svg" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
-      <circle cx="500" cy="70" r="34" fill="currentColor" opacity="0.6" />
-      <line x1="600" y1="230" x2="260" y2="230" stroke="currentColor" strokeWidth="1.5" />
-      {[0, 1, 2].map((r) => (
-        <g key={r} transform={`translate(${300 + r * 90} ${230 - r * 10}) rotate(-18)`}>
-          {Array.from({ length: 4 }).map((_, c) => (
-            <rect key={c} x={c * 34} y="0" width="28" height="60" rx="2" fill="none" stroke="currentColor" strokeWidth="1.5" />
-          ))}
-        </g>
-      ))}
+      <BlueprintGrid id="hg-solar" />
+      <SchematicBox x={330} y={40} w={220} h={54} label="SOLAR PANELS" />
+      <SchematicBox x={370} y={140} w={140} h={44} label="INVERTER" />
+      <SchematicBox x={330} y={230} w={110} h={50} label="STORAGE" />
+      <SchematicBox x={460} y={230} w={110} h={50} label="GRID" />
+      <SchematicWire points="440,94 440,140" />
+      <SchematicWire points="440,184 385,184 385,230" />
+      <SchematicWire points="440,184 515,184 515,230" />
+      <SchematicPin x={440} y={94} />
+      <SchematicPin x={440} y={184} />
+      <SchematicPin x={385} y={230} />
+      <SchematicPin x={515} y={230} />
     </svg>
   );
 }
 
 function ImpactArt() {
-  const bars = [40, 70, 55, 95, 75];
   return (
     <svg viewBox="0 0 600 320" className="hero__art-svg" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
-      <line x1="260" y1="260" x2="600" y2="260" stroke="currentColor" strokeWidth="1.5" />
-      {bars.map((h, i) => (
-        <rect key={i} x={300 + i * 55} y={260 - h * 1.6} width="34" height={h * 1.6} rx="3" fill="currentColor" opacity={0.35 + i * 0.09} />
-      ))}
-      <circle cx="580" cy="60" r="26" fill="none" stroke="currentColor" strokeWidth="2" />
-      <path d="M568 60 l8 8 16 -18" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+      <BlueprintGrid id="hg-impact" />
+      <SchematicBox x={300} y={60} w={130} h={44} label="BASELINE" />
+      <SchematicBox x={300} y={220} w={130} h={44} label="OPTIMIZED" />
+      <SchematicBox x={470} y={140} w={100} h={44} label="AVOIDED" />
+      <SchematicWire points="365,104 365,220" />
+      <SchematicWire points="430,242 470,242 470,184" />
+      <SchematicPin x={365} y={104} />
+      <SchematicPin x={365} y={220} />
+      <SchematicPin x={470} y={184} />
     </svg>
   );
 }
@@ -195,28 +233,30 @@ export default function HeroCarousel() {
         );
       })}
 
-      <div className="hero__controls">
-        <button type="button" className="hero__control-btn" onClick={() => setPlaying((p) => !p)} aria-label={playing ? "Pause slideshow" : "Play slideshow"}>
-          {playing ? <PauseGlyph /> : <PlayGlyph />}
-        </button>
-        <button type="button" className="hero__control-btn" onClick={() => goTo(index - 1)} aria-label="Previous slide">
-          <Icon name="chevronRight" size={14} style={{ transform: "rotate(180deg)" }} />
-        </button>
-        <button type="button" className="hero__control-btn" onClick={() => goTo(index + 1)} aria-label="Next slide">
-          <Icon name="chevronRight" size={14} />
-        </button>
-      </div>
+      <div className="hero__nav">
+        <div className="hero__dots">
+          {SLIDES.map((s, i) => (
+            <button
+              key={s.id}
+              type="button"
+              className={`hero__dot ${i === index ? "is-active" : ""}`}
+              onClick={() => setIndex(i)}
+              aria-label={`Go to slide ${i + 1}: ${s.title}`}
+            />
+          ))}
+        </div>
 
-      <div className="hero__dots">
-        {SLIDES.map((s, i) => (
-          <button
-            key={s.id}
-            type="button"
-            className={`hero__dot ${i === index ? "is-active" : ""}`}
-            onClick={() => setIndex(i)}
-            aria-label={`Go to slide ${i + 1}: ${s.title}`}
-          />
-        ))}
+        <div className="hero__controls">
+          <button type="button" className="hero__control-btn" onClick={() => setPlaying((p) => !p)} aria-label={playing ? "Pause slideshow" : "Play slideshow"}>
+            {playing ? <PauseGlyph /> : <PlayGlyph />}
+          </button>
+          <button type="button" className="hero__control-btn" onClick={() => goTo(index - 1)} aria-label="Previous slide">
+            <Icon name="chevronRight" size={14} style={{ transform: "rotate(180deg)" }} />
+          </button>
+          <button type="button" className="hero__control-btn" onClick={() => goTo(index + 1)} aria-label="Next slide">
+            <Icon name="chevronRight" size={14} />
+          </button>
+        </div>
       </div>
     </section>
   );
