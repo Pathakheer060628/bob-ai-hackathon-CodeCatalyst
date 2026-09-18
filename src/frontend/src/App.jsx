@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Route, Routes } from "react-router-dom";
+import { Route, Routes, useLocation } from "react-router-dom";
 import Header from "./components/ui/Header.jsx";
 import Sidebar from "./components/ui/Sidebar.jsx";
 import { useRuns } from "./context/RunContext.jsx";
@@ -28,6 +28,7 @@ import NotFound from "./pages/NotFound.jsx";
 
 export default function App() {
   const { datasetInfo, backendStatus, activeStatus } = useRuns();
+  const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const [theme, setTheme] = useState(getInitialTheme);
@@ -62,8 +63,8 @@ export default function App() {
           onToggleTheme={() => setTheme((t) => (t === "dark" ? "light" : "dark"))}
         />
 
-        <main className="content">
-          <Routes>
+        <main className="content" key={location.pathname}>
+          <Routes location={location}>
             <Route path="/" element={<CommandCenter />} />
             <Route path="/new-run" element={<NewRun />} />
             <Route path="/anomalies" element={<AnomalyIntelligence />} />

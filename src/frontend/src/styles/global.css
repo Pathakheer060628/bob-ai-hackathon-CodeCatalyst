@@ -143,6 +143,32 @@ input {
   background: var(--accent-soft-strong);
 }
 
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+@keyframes fade-slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
 /* ---------------------------------------------------------------- */
 /* Shell layout                                                      */
 /* ---------------------------------------------------------------- */
@@ -158,6 +184,7 @@ input {
   display: flex;
   flex-direction: column;
   margin-left: var(--sidebar-w);
+  transition: margin-left var(--ease-med);
 }
 
 .content {
@@ -165,6 +192,7 @@ input {
   width: 100%;
   margin: 0 auto;
   padding: 28px 32px 72px;
+  animation: fade-slide-up 0.32s ease both;
 }
 
 .content__heading {
@@ -241,9 +269,15 @@ input {
   width: 32px;
   height: 32px;
   border-radius: 9px;
-  background: var(--accent);
+  background: linear-gradient(135deg, var(--accent), var(--accent-hover));
+  box-shadow: 0 2px 10px var(--accent-soft-strong);
   color: #fff;
   flex-shrink: 0;
+  transition: transform var(--ease-fast);
+}
+
+.topbar__brand:hover .topbar__brand-mark {
+  transform: scale(1.06) rotate(-4deg);
 }
 
 .topbar__title {
@@ -373,13 +407,18 @@ input {
   border: 1px solid var(--border);
   color: var(--text-secondary);
   cursor: pointer;
-  transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+  transition: background var(--ease-fast), border-color var(--ease-fast), color var(--ease-fast), transform var(--ease-med);
 }
 
 .theme-toggle:hover {
   background: var(--surface-3);
   color: var(--text-primary);
   border-color: var(--border-strong);
+  transform: rotate(24deg);
+}
+
+.theme-toggle svg {
+  transition: transform var(--ease-med);
 }
 
 .topbar__avatar {
@@ -410,6 +449,7 @@ input {
   justify-content: space-between;
   z-index: 30;
   padding-top: var(--topbar-h);
+  transition: width var(--ease-med);
 }
 
 .sidebar__nav {
@@ -434,18 +474,40 @@ input {
   padding: 9px 12px;
   border-radius: var(--radius-sm);
   cursor: pointer;
-  transition: background 0.12s ease, color 0.12s ease;
+  position: relative;
+  transition: background var(--ease-fast), color var(--ease-fast), transform var(--ease-fast), padding-left var(--ease-fast);
+}
+
+.sidebar__item svg {
+  transition: transform var(--ease-fast);
 }
 
 .sidebar__item:hover:not(:disabled) {
   background: var(--surface-2);
   color: var(--text-primary);
+  padding-left: 16px;
+}
+
+.sidebar__item:hover:not(:disabled) svg {
+  transform: scale(1.08);
 }
 
 .sidebar__item--active {
   background: var(--accent-soft);
   color: var(--accent);
   font-weight: 600;
+}
+
+.sidebar__item--active::before {
+  content: "";
+  position: absolute;
+  left: -12px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 18px;
+  border-radius: 0 3px 3px 0;
+  background: var(--accent);
 }
 
 .sidebar__item--disabled {
@@ -486,6 +548,13 @@ input {
   box-shadow: var(--shadow-xs);
   padding: 20px 22px;
   margin-bottom: 18px;
+  transition: box-shadow var(--ease-med), border-color var(--ease-med), transform var(--ease-med);
+}
+
+.card:hover,
+.panel:hover {
+  box-shadow: var(--shadow-sm);
+  border-color: var(--border-strong);
 }
 
 .card h2,
@@ -562,6 +631,23 @@ input {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 14px;
+}
+
+.kpi-grid .stat-card {
+  animation: fade-slide-up 0.36s ease both;
+}
+
+.kpi-grid .stat-card:nth-child(1) {
+  animation-delay: 0.02s;
+}
+.kpi-grid .stat-card:nth-child(2) {
+  animation-delay: 0.06s;
+}
+.kpi-grid .stat-card:nth-child(3) {
+  animation-delay: 0.1s;
+}
+.kpi-grid .stat-card:nth-child(4) {
+  animation-delay: 0.14s;
 }
 
 .stat-card {
@@ -678,7 +764,7 @@ input {
   font-size: 13.5px;
   background: var(--surface);
   color: var(--text-primary);
-  transition: border-color 0.12s ease, box-shadow 0.12s ease;
+  transition: border-color var(--ease-fast), box-shadow var(--ease-fast), transform var(--ease-fast);
 }
 
 .run-form input:hover {
@@ -710,11 +796,15 @@ input {
   font-size: 13.5px;
   font-weight: 600;
   cursor: pointer;
-  transition: background 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease, transform 0.05s ease;
+  transition: background 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease, transform 0.12s ease;
   white-space: nowrap;
 }
 
-.btn:active {
+.btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.btn:active:not(:disabled) {
   transform: translateY(1px);
 }
 
@@ -726,6 +816,7 @@ input {
 
 .btn-primary:hover:not(:disabled) {
   background: var(--accent-hover);
+  box-shadow: 0 4px 14px var(--accent-soft-strong);
 }
 
 .btn-primary:focus-visible {
