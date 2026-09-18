@@ -54,6 +54,18 @@ class ForecastResult:
         return max(self.hourly, key=lambda h: h.forecast_mw)
 
 
+@dataclass
+class BacktestResult:
+    mae: float = 0.0
+    rmse: float = 0.0
+    mape: float | None = None
+    naive_mae: float = 0.0
+    improvement_pct: float = 0.0
+    n_points: int = 0
+    n_folds: int = 0
+    horizon_hours: int = 0
+
+
 def _seasonal_profile(history: pd.Series, lookback_weeks: int) -> pd.DataFrame:
     cutoff = history.index.max() - pd.Timedelta(weeks=lookback_weeks)
     windowed = history[history.index >= cutoff]
@@ -143,6 +155,88 @@ def forecast_demand(
         trend_factor=round(trend, 3),
         lookback_weeks=lookback_weeks,
         spike_std_threshold=spike_std_threshold,
+    )
+
+
+def backtest_demand_forecast(
+    history: pd.Series,
+    horizon_hours: int = 24,
+    n_folds: int = 4,
+    lookback_weeks: int = DEFAULT_LOOKBACK_WEEKS,
+    spike_std_threshold: float = DEFAULT_SPIKE_STD_THRESHOLD,
+) -> BacktestResult:
+    """Rolling-origin backtest of `forecast_demand` against a same-hour-last-week naive baseline.
+
+    Repeatedly re-runs the forecast as if it were issued at an earlier cutoff, using only
+    data available up to that point, then compares the forecast against what actually
+    happened (still within `history`). This is the measurable accuracy check the spec
+    requires before a forecast can be trusted operationally (ss5.1): MAE/RMSE plus the
+    improvement over a naive baseline, not just a plausible-looking curve.
+    """
+    history = history.sort_index()
+    min_train = 24 * 7
+    usable_start = min_train
+    usable_end = len(history) - horizon_hours
+    if usable_end <= usable_start:
+        return BacktestResult(horizon_hours=horizon_hours)
+
+    step = max(1, (usable_end - usable_start) // max(1, n_folds))
+    cutoffs = sorted({usable_start + i * step for i in range(n_folds)} | {usable_end})
+    cutoffs = [c for c in cutoffs if usable_start <= c <= usable_end]
+
+    errors: list[np.ndarray] = []
+    naive_errors: list[np.ndarray] = []
+    actuals: list[np.ndarray] = []
+    folds_used = 0
+
+    for cutoff_idx in cutoffs:
+        train = history.iloc[:cutoff_idx]
+        actual_future = history.iloc[cutoff_idx : cutoff_idx + horizon_hours]
+        if len(train) < min_train or len(actual_future) < horizon_hours:
+            continue
+
+        forecast = forecast_demand(
+            train, horizon_hours=horizon_hours, lookback_weeks=lookback_weeks, spike_std_threshold=spike_std_threshold
+        )
+        forecast_vals = np.array([h.forecast_mw for h in forecast.hourly], dtype=float)
+        actual_vals = actual_future.to_numpy(dtype=float)
+
+        naive_vals = np.array(
+            [
+                history.loc[ts - pd.Timedelta(weeks=1)] if (ts - pd.Timedelta(weeks=1)) in history.index else av
+                for ts, av in zip(actual_future.index, actual_vals)
+            ],
+            dtype=float,
+        )
+
+        errors.append(forecast_vals - actual_vals)
+        naive_errors.append(naive_vals - actual_vals)
+        actuals.append(actual_vals)
+        folds_used += 1
+
+    if not errors:
+        return BacktestResult(horizon_hours=horizon_hours)
+
+    all_err = np.concatenate(errors)
+    all_naive_err = np.concatenate(naive_errors)
+    all_actual = np.concatenate(actuals)
+
+    mae = float(np.mean(np.abs(all_err)))
+    rmse = float(np.sqrt(np.mean(all_err**2)))
+    naive_mae = float(np.mean(np.abs(all_naive_err)))
+    nonzero = all_actual != 0
+    mape = float(np.mean(np.abs(all_err[nonzero] / all_actual[nonzero])) * 100) if nonzero.any() else None
+    improvement_pct = round((1 - mae / naive_mae) * 100, 1) if naive_mae > 0 else 0.0
+
+    return BacktestResult(
+        mae=round(mae, 1),
+        rmse=round(rmse, 1),
+        mape=round(mape, 1) if mape is not None else None,
+        naive_mae=round(naive_mae, 1),
+        improvement_pct=improvement_pct,
+        n_points=int(all_err.size),
+        n_folds=folds_used,
+        horizon_hours=horizon_hours,
     )
 
 

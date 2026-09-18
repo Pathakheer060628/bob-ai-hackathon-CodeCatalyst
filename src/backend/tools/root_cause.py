@@ -30,6 +30,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+import numpy as np
 import pandas as pd
 
 from backend.tools.anomaly_detection import ASSET_COLUMNS, AnomalyEpisode, seasonal_capacity_factor_profile
@@ -38,12 +39,19 @@ OVERSUPPLY_RATIO_THRESHOLD = 0.85
 CORRELATED_WEATHER_DEVIATION_THRESHOLD = -0.10
 IMPLAUSIBLE_OVER_DEVIATION = 0.5
 
+# Below this confidence, an "equipment/availability fault" call (the elimination
+# default when neither oversupply nor correlated-weather evidence is present) is
+# downgraded to "unknown" rather than asserted -- a short, shallow isolated dip is
+# genuinely ambiguous without an actual availability/SCADA signal to confirm it.
+UNKNOWN_CONFIDENCE_FLOOR = 0.45
+
 ROOT_CAUSE_LABELS = {
     "curtailment_likely": "Likely curtailment (renewable oversupply relative to load)",
     "weather_driven_low_resource": "Weather-driven low resource (correlated dip across asset classes)",
     "equipment_or_availability_fault": "Possible equipment or availability fault (isolated to this asset)",
     "favorable_resource_surplus": "Favorable resource surplus (benign, raises curtailment risk)",
     "data_quality_anomaly": "Data quality anomaly (implausible deviation magnitude)",
+    "unknown": "Unknown -- evidence insufficient or conflicting to assign a cause",
 }
 
 
@@ -53,6 +61,7 @@ class RootCauseFinding:
     category: str
     label: str
     evidence: dict
+    confidence: float = 0.5
 
 
 def _other_asset_avg_deviation(
@@ -95,13 +104,16 @@ def classify_root_cause(
     if episode.direction == "over":
         if abs(episode.peak_deviation) > IMPLAUSIBLE_OVER_DEVIATION:
             category = "data_quality_anomaly"
+            confidence = float(np.clip(0.5 + (abs(episode.peak_deviation) - IMPLAUSIBLE_OVER_DEVIATION), 0.5, 0.97))
         else:
             category = "favorable_resource_surplus"
+            confidence = float(np.clip(0.9 - abs(episode.peak_deviation), 0.5, 0.9))
         return RootCauseFinding(
             episode=episode,
             category=category,
             label=ROOT_CAUSE_LABELS[category],
             evidence={"peak_deviation": episode.peak_deviation},
+            confidence=round(confidence, 2),
         )
 
     oversupply_ratio = _renewable_load_ratio(window, episode.start, episode.end)
@@ -111,10 +123,22 @@ def classify_root_cause(
 
     if oversupply_ratio >= OVERSUPPLY_RATIO_THRESHOLD:
         category = "curtailment_likely"
+        margin = oversupply_ratio - OVERSUPPLY_RATIO_THRESHOLD
+        confidence = float(np.clip(0.55 + margin * 2.0, 0.5, 0.97))
     elif other_deviation <= CORRELATED_WEATHER_DEVIATION_THRESHOLD:
         category = "weather_driven_low_resource"
+        margin = CORRELATED_WEATHER_DEVIATION_THRESHOLD - other_deviation
+        confidence = float(np.clip(0.55 + margin * 3.0, 0.5, 0.95))
     else:
+        # elimination default: neither oversupply nor a correlated weather dip
+        # explains it, so an isolated equipment/availability fault is the most
+        # likely remaining hypothesis -- but this dataset has no direct SCADA/
+        # availability signal to confirm it, so confidence scales with how
+        # sustained the isolated episode is rather than being asserted outright.
         category = "equipment_or_availability_fault"
+        confidence = float(np.clip(0.35 + episode.duration_hours / 48.0, 0.3, 0.75))
+        if confidence < UNKNOWN_CONFIDENCE_FLOOR:
+            category = "unknown"
 
     return RootCauseFinding(
         episode=episode,
@@ -125,4 +149,5 @@ def classify_root_cause(
             "other_assets_avg_deviation": round(other_deviation, 4),
             "avg_deviation": episode.avg_deviation,
         },
+        confidence=round(confidence, 2),
     )

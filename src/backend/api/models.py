@@ -26,6 +26,7 @@ class Run(Base):
     horizon_hours: Mapped[int] = mapped_column(nullable=False)
 
     config: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    scenario: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     result: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     progress_log: Mapped[list] = mapped_column(JSON, default=list, nullable=False)
     error: Mapped[str | None] = mapped_column(Text, nullable=True)

@@ -122,3 +122,40 @@ def test_implausible_over_episode_classified_as_data_quality():
     )
     finding = classify_root_cause(episode, df, df)
     assert finding.category == "data_quality_anomaly"
+
+
+def test_every_finding_carries_a_confidence_score():
+    df = _synthetic_history()
+    window = df.iloc[-24 * 7 :].copy()
+    tail = window.index[-72:]
+    window.loc[tail, "wind_onshore_actual_mw"] *= 0.05
+    window.loc[tail, "wind_onshore_capacity_factor"] = (
+        window.loc[tail, "wind_onshore_actual_mw"] / window["wind_onshore_capacity_mw"]
+    )
+    window["renewable_actual_mw"] = (
+        window["solar_actual_mw"] + window["wind_onshore_actual_mw"] + window["wind_offshore_actual_mw"]
+    )
+
+    result = detect_renewable_anomalies(window, df, "wind_onshore")
+    finding = classify_root_cause(result.episodes[0], window, df)
+    assert 0.0 <= finding.confidence <= 1.0
+
+
+def test_short_ambiguous_isolated_dip_classified_as_unknown():
+    df = _synthetic_history()
+    # a short (2h), shallow isolated dip: neither an oversupply signature nor a
+    # correlated weather dip, and too brief to confidently call an equipment fault
+    episode = AnomalyEpisode(
+        asset="wind_onshore",
+        start=df.index[100],
+        end=df.index[101],
+        direction="under",
+        duration_hours=2,
+        avg_deviation=-0.08,
+        peak_deviation=-0.1,
+    )
+    window = df.iloc[90:110].copy()
+    window["load_actual_mw"] = 50000.0  # not scarce -> not a curtailment signature
+    finding = classify_root_cause(episode, window, df)
+    assert finding.category == "unknown"
+    assert finding.confidence < 0.45

@@ -1,6 +1,6 @@
 import Icon from "./Icon.jsx";
 
-export default function Header({ datasetInfo, backendStatus, activeStatus, activeVerified, onMenuClick, theme, onToggleTheme }) {
+export default function Header({ datasetInfo, backendStatus, activeStatus, onMenuClick, theme, onToggleTheme }) {
   const running = activeStatus === "running" || activeStatus === "pending";
   return (
     <header className="topbar">
@@ -22,12 +22,12 @@ export default function Header({ datasetInfo, backendStatus, activeStatus, activ
       <div className="topbar__center">
         <div className="dataset-badge-row" style={{ marginBottom: 0 }}>
           <span className="status-pill status-pill--historical" title="This system runs against a fixed historical extract, never live telemetry">
-            <Icon name="layers" size={13} />
+            <Icon name="layers" size={11} />
             Historical Simulation (2017&ndash;2019)
           </span>
           {datasetInfo && (
             <div className="topbar__dataset" title={`${datasetInfo.source} (${datasetInfo.license})`}>
-              <Icon name="fileText" size={14} />
+              <Icon name="fileText" size={12} />
               <span>
                 {datasetInfo.source} &middot; {datasetInfo.license}
               </span>
@@ -37,20 +37,16 @@ export default function Header({ datasetInfo, backendStatus, activeStatus, activ
       </div>
 
       <div className="topbar__right">
-        <span className={`status-pill ${backendStatus === "online" ? "status-pill--good" : backendStatus === "offline" ? "status-pill--offline" : "status-pill--idle"}`}>
-          <span className="status-pill__dot" />
-          {backendStatus === "online" ? "Backend online" : backendStatus === "offline" ? "Backend offline" : "Checking..."}
-        </span>
+        {backendStatus === "offline" && (
+          <span className="status-pill status-pill--offline" title="The backend API is unreachable — start it to run the pipeline">
+            <span className="status-pill__dot" />
+            Backend offline
+          </span>
+        )}
         {running && (
           <span className="status-pill status-pill--active">
             <span className="status-pill__dot" />
             Pipeline running
-          </span>
-        )}
-        {activeVerified != null && !running && (
-          <span className={`status-pill ${activeVerified ? "status-pill--good" : "status-pill--warning"}`}>
-            <Icon name="shieldCheck" size={13} />
-            {activeVerified ? "Verified" : "Flagged"}
           </span>
         )}
         <button
@@ -60,10 +56,10 @@ export default function Header({ datasetInfo, backendStatus, activeStatus, activ
           aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
           title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
         >
-          <Icon name={theme === "dark" ? "sun" : "moon"} size={16} />
+          <Icon name={theme === "dark" ? "sun" : "moon"} size={13} />
         </button>
         <span className="topbar__avatar" aria-label="User">
-          <Icon name="user" size={16} />
+          <Icon name="user" size={13} />
         </span>
       </div>
     </header>

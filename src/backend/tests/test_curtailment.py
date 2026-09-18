@@ -40,6 +40,29 @@ def test_no_baseline_curtailment_gives_zero_pct():
     assert plan.curtailment_reduction_pct == 0.0
 
 
+def test_baseline_feasible_with_nonzero_initial_soc():
+    """Regression test: a nonzero storage_initial_soc_mwh on the input config must not
+    make the baseline (zero-storage) LP infeasible. The baseline zeroes out storage
+    capacity/rate to represent "no flexibility", so its initial SOC must be zeroed too
+    -- otherwise the SOC balance equation demands soc[0] == storage_initial_soc_mwh
+    while the SOC bound is fixed at [0, 0], which is unsatisfiable and silently
+    reported curtailment_avoided_mwh as 0 (or negative once the optimized plan
+    curtails anything)."""
+    demand = [500, 500, 500, 500]
+    renewable = [500, 500, 2200, 500]
+    config = LoadBalanceConfig(
+        dispatchable_capacity_mw=1000,
+        storage_capacity_mwh=2000,
+        storage_max_rate_mw=1500,
+        storage_efficiency=0.9,
+        storage_initial_soc_mwh=800,
+        max_demand_response_fraction=0.1,
+    )
+    plan = minimize_curtailment(demand, renewable, config)
+    assert plan.baseline.feasible
+    assert plan.curtailment_avoided_mwh >= 0
+
+
 def test_recommended_actions_only_include_active_hours():
     demand = [500, 500, 500]
     renewable = [500, 500, 2000]

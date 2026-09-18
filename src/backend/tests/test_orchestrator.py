@@ -34,4 +34,56 @@ def test_pipeline_progress_log_covers_every_stage():
 
 def test_stream_pipeline_yields_all_nodes_in_order():
     nodes_seen = [name for name, _ in stream_pipeline(_sample_request())]
-    assert nodes_seen == ["forecast", "anomalies", "load_balance", "curtailment", "narrate", "verify"]
+    assert nodes_seen == [
+        "data_quality",
+        "forecast",
+        "anomalies",
+        "load_balance",
+        "curtailment",
+        "facts",
+        "narrate",
+        "verify",
+    ]
+
+
+def test_pipeline_result_includes_facts_and_manifest():
+    result = run_pipeline(_sample_request())
+    assert result["data_quality"].hard_fail is False
+    assert result["facts"], "expected a non-empty fact ledger"
+    assert result["manifest"]["model_versions"]
+    assert result["forecast_backtest"] is not None
+
+
+def test_scenario_scales_forecast_and_is_labeled_simulated():
+    from backend.agents.orchestrator import ScenarioConfig
+
+    request = _sample_request()
+    baseline = run_pipeline(request).copy()
+
+    scenario_request = _sample_request()
+    scenario_request.scenario = ScenarioConfig(scenario_id="scn_test", renewable_scale=2.5, demand_scale=1.0)
+    scenario_result = run_pipeline(scenario_request)
+
+    baseline_peak = baseline["forecast"].peak.forecast_mw
+    scenario_peak = scenario_result["forecast"].peak.forecast_mw
+    assert scenario_peak == baseline_peak  # demand untouched
+
+    baseline_renewable_total = sum(baseline["renewable_forecast_mw"])
+    scenario_renewable_total = sum(scenario_result["renewable_forecast_mw"])
+    assert scenario_renewable_total > baseline_renewable_total
+
+    log_text = " ".join(scenario_result["progress_log"])
+    assert "SIMULATED SCENARIO" in log_text
+
+
+def test_hard_data_quality_failure_blocks_before_optimization():
+    full_history = load_grid_data()
+    window_end = pd.Timestamp("2019-06-30 23:00:00", tz="UTC")
+    window_start = window_end - pd.Timedelta(days=3)  # under the 1-week minimum -> hard fail
+    history = full_history.loc[window_start:window_end]
+    request = PipelineRequest(history=history, full_history=full_history, horizon_hours=24)
+
+    result = run_pipeline(request)
+    assert result["data_quality"].hard_fail
+    assert "forecast" not in result
+    assert "narrative" not in result
