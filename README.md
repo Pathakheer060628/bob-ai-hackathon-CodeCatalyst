@@ -86,6 +86,8 @@ writeup.
 ```
 ├── src/                  # All source code (backend/ + frontend/)
 ├── docs/                 # Written documentation
+│   ├── plain-language-overview.md   # No-jargon explainer of the whole project
+│   ├── PROJECT_OVERVIEW.md          # Technical deep-dive
 │   ├── problem-statement.md
 │   ├── solution-overview.md
 │   ├── architecture.md
