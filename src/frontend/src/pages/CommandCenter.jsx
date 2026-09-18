@@ -6,6 +6,7 @@ import StatCard from "../components/ui/StatCard.jsx";
 import Icon from "../components/ui/Icon.jsx";
 import DemandForecastChart from "../components/DemandForecastChart.jsx";
 import EmptyRunState from "../components/ui/EmptyRunState.jsx";
+import HeroCarousel from "../components/HeroCarousel.jsx";
 
 function fmt(value, digits = 0) {
   if (value == null || Number.isNaN(value)) return "—";
@@ -67,18 +68,7 @@ export default function CommandCenter() {
         )}
       </div>
 
-      <section className="panel panel--control section-gap" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 14 }}>
-        <div>
-          <h2 style={{ margin: "0 0 4px" }}>Run a new optimization</h2>
-          <p style={{ margin: 0, fontSize: 13, color: "var(--text-secondary)" }}>
-            Forecast demand, detect renewable anomalies, and compute a curtailment-minimizing dispatch plan for a chosen window.
-          </p>
-        </div>
-        <Link to="/new-run" className="btn btn-primary">
-          <Icon name="bolt" size={15} />
-          New Optimization Run
-        </Link>
-      </section>
+      <HeroCarousel />
 
       {runsLoading && !latestAny ? (
         <div className="card">
