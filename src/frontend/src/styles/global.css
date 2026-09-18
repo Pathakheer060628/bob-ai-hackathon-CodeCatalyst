@@ -175,7 +175,14 @@ input {
 
 .shell {
   display: flex;
+  flex-direction: column;
   min-height: 100vh;
+}
+
+.shell__body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
 }
 
 .shell__main {
@@ -451,7 +458,7 @@ input {
 
 .sidebar {
   position: fixed;
-  top: 0;
+  top: var(--topbar-h);
   left: 0;
   bottom: 0;
   width: var(--sidebar-w);
@@ -461,7 +468,6 @@ input {
   flex-direction: column;
   justify-content: space-between;
   z-index: 30;
-  padding-top: var(--topbar-h);
   transition: width var(--ease-med);
 }
 

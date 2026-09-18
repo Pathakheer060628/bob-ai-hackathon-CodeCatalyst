@@ -44,38 +44,40 @@ export default function App() {
 
   return (
     <div className="shell">
-      <Sidebar
-        open={sidebarOpen}
-        collapsed={collapsed}
-        backendOnline={backendStatus === "online"}
-        onNavigate={() => setSidebarOpen(false)}
-        onToggleCollapse={() => setCollapsed((c) => !c)}
+      <Header
+        datasetInfo={datasetInfo}
+        backendStatus={backendStatus}
+        activeStatus={activeStatus}
+        onMenuClick={() => setSidebarOpen((o) => !o)}
+        theme={theme}
+        onToggleTheme={() => setTheme((t) => (t === "dark" ? "light" : "dark"))}
       />
-      {sidebarOpen && <div className="sidebar__backdrop sidebar__backdrop--visible" onClick={() => setSidebarOpen(false)} />}
 
-      <div className={`shell__main ${collapsed ? "shell__main--collapsed" : ""}`}>
-        <Header
-          datasetInfo={datasetInfo}
-          backendStatus={backendStatus}
-          activeStatus={activeStatus}
-          onMenuClick={() => setSidebarOpen((o) => !o)}
-          theme={theme}
-          onToggleTheme={() => setTheme((t) => (t === "dark" ? "light" : "dark"))}
+      <div className="shell__body">
+        <Sidebar
+          open={sidebarOpen}
+          collapsed={collapsed}
+          backendOnline={backendStatus === "online"}
+          onNavigate={() => setSidebarOpen(false)}
+          onToggleCollapse={() => setCollapsed((c) => !c)}
         />
+        {sidebarOpen && <div className="sidebar__backdrop sidebar__backdrop--visible" onClick={() => setSidebarOpen(false)} />}
 
-        <main className="content" key={location.pathname}>
-          <Routes location={location}>
-            <Route path="/" element={<CommandCenter />} />
-            <Route path="/new-run" element={<NewRun />} />
-            <Route path="/anomalies" element={<AnomalyIntelligence />} />
-            <Route path="/optimization" element={<OptimizationPlan />} />
-            <Route path="/curtailment" element={<CurtailmentImpact />} />
-            <Route path="/brief" element={<OperatorBrief />} />
-            <Route path="/history" element={<RunHistory />} />
-            <Route path="/runs/:runId" element={<RunDetail />} />
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </main>
+        <div className={`shell__main ${collapsed ? "shell__main--collapsed" : ""}`}>
+          <main className="content" key={location.pathname}>
+            <Routes location={location}>
+              <Route path="/" element={<CommandCenter />} />
+              <Route path="/new-run" element={<NewRun />} />
+              <Route path="/anomalies" element={<AnomalyIntelligence />} />
+              <Route path="/optimization" element={<OptimizationPlan />} />
+              <Route path="/curtailment" element={<CurtailmentImpact />} />
+              <Route path="/brief" element={<OperatorBrief />} />
+              <Route path="/history" element={<RunHistory />} />
+              <Route path="/runs/:runId" element={<RunDetail />} />
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </main>
+        </div>
       </div>
     </div>
   );
