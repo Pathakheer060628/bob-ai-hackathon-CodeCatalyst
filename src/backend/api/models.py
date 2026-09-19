@@ -25,6 +25,7 @@ class Run(Base):
     lookback_days: Mapped[int] = mapped_column(nullable=False)
     horizon_hours: Mapped[int] = mapped_column(nullable=False)
 
+    forecast_model: Mapped[str] = mapped_column(String(16), default="seasonal", nullable=False)
     config: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     scenario: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     result: Mapped[dict | None] = mapped_column(JSON, nullable=True)

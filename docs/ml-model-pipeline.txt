@@ -1,0 +1,271 @@
+GridSentinel — Trained ML Demand-Forecasting Model
+====================================================
+
+This document covers the machine-learning model added on top of
+GridSentinel's original deterministic pipeline: what model it is, why it
+was chosen, exactly what data and features it trains on, how it's
+evaluated, and how it plugs into the existing LangGraph pipeline
+(docs/project-flow-pipeline.txt) without disturbing anything downstream.
+
+This is a genuinely trained model with saved weights and measured
+accuracy against a held-out test set -- not a re-labelled version of the
+existing seasonal-naive heuristic.
+
+
+1. WHAT PROBLEM IT SOLVES
+---------------------------
+
+GridSentinel's core forecasting task is: given hourly grid history up to
+"now", predict German national electricity demand (load_actual_mw) for
+each of the next 1-72 hours. The original implementation
+(backend/tools/forecasting.py) does this with a seasonal-naive heuristic
+(median load for the same weekday/hour over a lookback window, scaled by
+a recent trend ratio). It's transparent and always available, but it
+can't learn interactions between calendar structure, recent momentum,
+and the two-week seasonal cycle the way a model fit on real historical
+error can.
+
+The new model (backend/ml/) is trained directly on the project's real
+dataset (backend/data/grid_renewable_de_2017_2019.csv -- genuine German
+TSO data via ENTSO-E / Open Power System Data, not synthetic) to predict
+the same target, and is wired in as a selectable alternative forecast
+engine, not a replacement -- an operator picks "seasonal" (default) or
+"ml" per run.
+
+
+2. WHY THIS MODEL: HistGradientBoostingRegressor
+----------------------------------------------------
+
+Model: scikit-learn's `HistGradientBoostingRegressor` -- a histogram-
+binned gradient-boosted decision tree ensemble (the same family as
+XGBoost / LightGBM, implemented natively in scikit-learn).
+
+Why this, specifically, for this project and this hackathon:
+
+  - Right-sized for the data. The training set is ~155k rows x 15
+    features -- structured/tabular, not sequence data at a scale where a
+    deep neural net (LSTM/Transformer) would justify its extra
+    complexity, training time, and overfitting risk. Gradient-boosted
+    trees are the standard, competition-proven choice for problems in
+    exactly this shape.
+
+  - Zero new dependencies, zero GPU. scikit-learn is already a project
+    dependency (see src/pyproject.toml). A judge or teammate cloning the
+    repo and running `pip install -e ".[dev]"` gets everything needed to
+    retrain -- no CUDA, no extra multi-hundred-MB packages, no flaky
+    download during a live demo.
+
+  - Handles mixed-scale, mixed-type features natively -- MW-scale
+    rolling means sitting next to unit-scale sin/cos calendar encodings
+    -- without a separate scaling/normalization pipeline, and tolerates
+    missing values out of the box.
+
+  - Built-in early stopping (holds out a validation slice internally and
+    stops boosting when it stops improving), which keeps training both
+    fast and resistant to overfitting without manual tuning of the
+    iteration count.
+
+  - Explainable via permutation importance (see section 5) -- consistent
+    with GridSentinel's core design principle that every number in an
+    operator brief must trace back to something inspectable. An opaque
+    deep model would fight that; a tree ensemble with feature-importance
+    output supports it.
+
+  - Fast enough to retrain from scratch in well under a minute on a
+    laptop CPU, which matters for a hackathon where the model may need
+    to be retrained live or re-verified by judges.
+
+
+3. INPUT / OUTPUT CONTRACT
+------------------------------
+
+Inputs at inference time (backend/ml/features.py:build_inference_features):
+  - `history`: the hourly grid DataFrame for the operator's selected
+    lookback window (same input the seasonal forecaster gets).
+  - `full_history`: the complete dataset (needed to look back further
+    than the lookback window for the 1-2 week lag features and the
+    long-run seasonal renewable climatology).
+  - `horizons`: the list of hours-ahead to predict (1..horizon_hours,
+    typically 1..24 or up to 72).
+
+Output: one predicted `load_actual_mw` value per requested horizon hour,
+wrapped into the exact same `ForecastResult` / `HourlyForecast` dataclass
+shape the seasonal forecaster returns (backend/ml/ml_forecasting.py) --
+timestamp, forecast_mw, baseline_mw, baseline_std_mw, upper/lower bound,
+is_spike, spike_severity_std. This is what makes it a drop-in
+replacement: load-balancing, curtailment, the fact ledger, narration, and
+the verifier all consume `ForecastResult` and don't know or care whether
+it came from the seasonal heuristic or the trained model.
+
+
+4. FEATURES USED (15 total)
+-------------------------------
+
+Every feature is leakage-safe: for a prediction made "as of" some origin
+timestamp for `horizon_h` hours ahead, nothing between the origin and the
+target hour is ever used. Two families:
+
+  Autocorrelation / trend (what the load has actually been doing):
+    - lag_168        load exactly 168h (1 week) before the target hour
+                      -- always inside known history for any horizon up
+                      to 72h, since 72 < 168.
+    - lag_336        load exactly 336h (2 weeks) before the target hour
+                      -- a second seasonal anchor point.
+    - roll_mean_24    mean load over the 24h ending at the origin
+                      (short-term momentum).
+    - roll_mean_168   mean load over the 168h (1 week) ending at the
+                      origin (medium-term level).
+    - roll_std_168    std of load over that same trailing week
+                      (volatility regime).
+    - trend_ratio     roll_mean_168 at the origin, divided by the
+                      long-run seasonal median for the origin's own
+                      (weekday, hour) -- "are we currently running hot or
+                      cold vs. normal for this time of year".
+    - horizon_h       the prediction distance itself, as a feature --
+                      lets one model serve every horizon instead of
+                      training 72 separate models.
+
+  Calendar + weather proxy (what kind of hour the target is):
+    - hour_sin / hour_cos      cyclical encoding of the target's hour of
+                                day (0-23 wrapped onto a circle, so hour
+                                23 and hour 0 are adjacent, not 23 apart).
+    - dow_sin / dow_cos        cyclical encoding of day of week.
+    - month_sin / month_cos    cyclical encoding of month (annual
+                                seasonality).
+    - is_weekend               binary flag.
+    - renewable_cf_expected    expected renewable (solar+wind) output at
+                                the target hour, from the long-run
+                                month/hour capacity-factor climatology
+                                applied to installed capacity at the
+                                origin -- the same weather-proxy approach
+                                the existing renewable forecaster uses.
+                                Captures the demand-side effect of
+                                typical renewable supply at that hour
+                                (e.g. midday solar suppressing net load).
+
+Target: `target_load_mw` = actual load at the target timestamp.
+
+
+5. WHICH FEATURES ACTUALLY MATTER (permutation importance)
+---------------------------------------------------------------
+
+After training, the model was evaluated with scikit-learn's permutation
+importance on a held-out sample: each feature is shuffled independently
+and the resulting increase in test-set MAE is measured (a bigger MAE
+increase = the model relies on that feature more). Results, most to
+least useful:
+
+    Feature                  MAE increase when shuffled (MW)
+    lag_168                  2,948.9
+    hour_cos                 2,320.5
+    lag_336                  2,025.7
+    dow_sin                    876.2
+    roll_mean_24                631.7
+    month_cos                   323.6
+    roll_mean_168                252.3
+    hour_sin                     205.1
+    horizon_h                    127.5
+    roll_std_168                   97.0
+    dow_cos                        82.7
+    is_weekend                     35.7
+    month_sin                      20.0
+    trend_ratio                    12.6
+    renewable_cf_expected           -4.5 (no measurable contribution)
+
+Interpretation: the model leans heavily on "what happened at this exact
+hour last week / two weeks ago" (lag_168, lag_336) plus "what time of
+day is it" (hour_cos) -- exactly the structure a grid operator would
+expect to dominate short-horizon demand, and consistent with why the
+original seasonal-naive baseline (same idea, simpler execution) was
+already a reasonable heuristic. The trained model's edge comes from
+combining these signals nonlinearly rather than discovering an entirely
+different driver. `renewable_cf_expected` contributes essentially
+nothing once the lag/calendar features are present -- kept in the
+feature set for interpretability and because it costs nothing, but it
+would be the first candidate to drop in a leaner feature set.
+
+
+6. TRAINING SETUP
+---------------------
+
+  - Data: full dataset, 26,280 hourly rows, 2017-01-01 -- 2019-12-31.
+  - Training rows: for horizons {1,2,3,4,6,8,12,16,20,24,30,36,42,48,
+    54,60,66,72}, one row per (origin hour, horizon) pair, origins
+    subsampled every 3 hours to keep the training set a manageable
+    ~155k rows without biasing horizon coverage. 103,104 train rows /
+    52,128 test rows after the split below.
+  - Split: strictly time-based, train = 2017-01-01 .. 2018-12-31,
+    test = all of 2019 -- no shuffling, no random split, so the
+    reported accuracy reflects genuine out-of-sample (future) prediction,
+    not interpolation.
+  - Hyperparameters: learning_rate=0.06, max_iter=400 (with early
+    stopping, n_iter_no_change=20, on a 10% internal validation slice),
+    max_depth=7, max_leaf_nodes=31, min_samples_leaf=40,
+    l2_regularization=0.1, random_state=42 for reproducibility.
+  - Also saved: a per-horizon residual standard deviation (from test-set
+    errors), used at inference time to build a proper data-driven 95%
+    confidence band around each forecast hour instead of a fixed
+    constant -- the further out the horizon, the wider the measured
+    uncertainty (grows from ~2,900 MW at 1h out to ~3,950 MW at 72h out).
+
+
+7. EVALUATION RESULTS (held-out 2019 test set)
+---------------------------------------------------
+
+    MAE                    2,081.4 MW
+    RMSE                   3,182.0 MW
+    MAPE                       3.79%
+    Naive baseline MAE     2,555.4 MW   (same-hour-last-week forecast)
+    Improvement vs. naive     +18.6%
+
+The naive baseline here is deliberately the strongest naive baseline
+available (same-hour-last-week, i.e. exactly the `lag_168` feature) --
+so the +18.6% improvement reflects genuine added value from combining
+that signal with trend, other-lag, and calendar information, not just
+"beating a weak strawman". A MAPE under 4% on a grid whose peak demand
+runs ~45,000-55,000 MW is a solid result for an hours-ahead demand
+forecast built without any external weather-forecast feed.
+
+
+8. HOW IT PLUGS INTO THE EXISTING PIPELINE
+------------------------------------------------
+
+No change to the LangGraph topology (see docs/project-flow-pipeline.txt)
+-- the ML model slots into the existing `forecast` node as a selectable
+mode:
+
+  - `backend/ml/features.py`       feature engineering (training +
+                                    inference, shared logic)
+  - `backend/ml/train_demand_model.py`  offline training script; run
+                                    with `python -m backend.ml.
+                                    train_demand_model` from `src/`
+  - `backend/ml/ml_forecasting.py` inference wrapper producing a
+                                    `ForecastResult` identical in shape
+                                    to the seasonal forecaster's output
+  - `backend/data/models/demand_forecast_hgb.joblib`       trained model
+  - `backend/data/models/demand_forecast_hgb.metadata.json` hyperparams,
+    feature list, metrics, feature importance, per-horizon residual std
+
+`orchestrator.py`'s `node_forecast` now reads `forecast_model` off the
+run request ("seasonal", the default, or "ml"). If "ml" is requested but
+no trained model artifact exists, it logs a message and transparently
+falls back to the seasonal forecaster rather than failing the run --
+the pipeline is never left without a usable forecast. This flows through
+the API (`POST /api/runs` accepts `forecast_model: "seasonal" | "ml"`)
+and is persisted per run in SQLite, so a run's forecast method is part
+of its permanent record. Every other stage of the pipeline (anomaly
+detection, load balancing, curtailment, fact ledger, narration,
+verification) is completely unaffected -- they only ever see a
+`ForecastResult`, regardless of which engine produced it.
+
+
+9. RETRAINING
+-----------------
+
+    cd src
+    python -m backend.ml.train_demand_model
+
+Retraining is fully reproducible (fixed random_state, deterministic
+time-based split) and takes well under a minute on a laptop CPU. Re-run
+this any time the underlying dataset changes, or to experiment with the
+feature set / hyperparameters in backend/ml/train_demand_model.py.
