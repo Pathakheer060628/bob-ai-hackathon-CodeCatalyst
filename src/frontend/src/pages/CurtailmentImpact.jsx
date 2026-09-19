@@ -68,9 +68,7 @@ export default function CurtailmentImpact() {
 
       <CurtailmentPanel curtailment={curtailment} />
 
-      {businessImpact && (
-        <BusinessImpactPanel businessImpact={businessImpact} curtailment={curtailment} anomalies={anomalies} />
-      )}
+      {businessImpact && <BusinessImpactPanel businessImpact={businessImpact} anomalies={anomalies} />}
     </div>
   );
 }
