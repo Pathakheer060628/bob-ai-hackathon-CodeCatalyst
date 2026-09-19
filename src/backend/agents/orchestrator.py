@@ -213,7 +213,11 @@ def node_detect_anomalies_and_root_cause(state: GridState) -> dict:
         for episode in result.episodes:
             findings.append(classify_root_cause(episode, history, full_history))
 
-    findings.sort(key=lambda f: f.episode.duration_hours, reverse=True)
+    # Rank by estimated $ cost exposure first, not just how long an episode lasted or
+    # how confident the root-cause call is -- a low-confidence, short-lived anomaly on
+    # a large asset can carry more real cost than a long, high-confidence one on a
+    # small asset, and that's what an operator should see first.
+    findings.sort(key=lambda f: (f.estimated_cost_usd, f.episode.duration_hours), reverse=True)
     findings = findings[:MAX_ANOMALY_FINDINGS]
 
     return {"anomalies": findings, "progress_log": log_lines}

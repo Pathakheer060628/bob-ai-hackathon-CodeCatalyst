@@ -34,6 +34,15 @@ import numpy as np
 import pandas as pd
 
 from backend.tools.anomaly_detection import ASSET_COLUMNS, AnomalyEpisode, seasonal_capacity_factor_profile
+from backend.tools.load_balancing import COST_CURTAIL_PER_MWH, COST_DISPATCH_PER_MWH
+
+# Which installed-capacity column backs each asset's capacity-factor deviation,
+# so a deviation (a fraction) can be converted into an actual MW magnitude.
+ASSET_CAPACITY_COLUMNS = {
+    "solar": "solar_capacity_mw",
+    "wind_onshore": "wind_onshore_capacity_mw",
+    "wind_offshore": "wind_offshore_capacity_mw",
+}
 
 OVERSUPPLY_RATIO_THRESHOLD = 0.85
 CORRELATED_WEATHER_DEVIATION_THRESHOLD = -0.10
@@ -62,6 +71,52 @@ class RootCauseFinding:
     label: str
     evidence: dict
     confidence: float = 0.5
+    estimated_cost_usd: float = 0.0
+    cost_basis: str = ""
+
+
+def _estimate_cost_impact_usd(episode: AnomalyEpisode, window: pd.DataFrame) -> tuple[float, str]:
+    """Ballpark $ exposure for one anomaly episode, using the same illustrative
+    $/MWh rates the load-balancing LP already prices actions at (backend/tools/
+    load_balancing.py) -- not a new pricing model, just applying the existing
+    one to an anomaly instead of a dispatch decision.
+
+    Magnitude = deviation (a capacity-factor fraction) x the asset's actual
+    installed capacity over the episode -- the real MW swing implied by the
+    deviation, not just its percentage size, so a long, mild anomaly on a
+    large fleet (e.g. Germany's ~44 GW onshore wind base) can rank above a
+    short, severe one on a small asset.
+
+    "under" episodes are priced at the full dispatch rate: a genuine shortfall
+    has to be backfilled roughly 1:1 by dispatchable generation.
+
+    "over" episodes are priced at the curtailment rate, but only for the
+    share of that excess actually likely to need curtailment rather than just
+    being absorbed by ordinary demand: scaled by the episode's own
+    renewable-to-load ratio (0-1), the same signal `classify_root_cause`
+    already computes to judge oversupply risk. Without this scaling, treating
+    100% of a multi-day fleet-wide deviation as curtailable hugely overstates
+    exposure -- e.g. a period where wind briefly ran 40% of load would price
+    very differently from one where it ran 90%+ of load, even at an identical
+    capacity-factor deviation.
+    """
+    capacity_col = ASSET_CAPACITY_COLUMNS.get(episode.asset)
+    if capacity_col is None or capacity_col not in window.columns:
+        return 0.0, ""
+    span = window.loc[episode.start : episode.end]
+    if span.empty:
+        return 0.0, ""
+    avg_capacity_mw = float(span[capacity_col].mean())
+    magnitude_mw = abs(episode.avg_deviation) * avg_capacity_mw
+
+    if episode.direction == "over":
+        oversupply_ratio = min(1.0, _renewable_load_ratio(window, episode.start, episode.end))
+        rate, basis = COST_CURTAIL_PER_MWH * oversupply_ratio, "curtailment risk"
+    else:
+        rate, basis = COST_DISPATCH_PER_MWH, "backfill dispatch"
+
+    cost = magnitude_mw * episode.duration_hours * rate
+    return round(cost, 2), basis
 
 
 def _other_asset_avg_deviation(
@@ -101,6 +156,8 @@ def classify_root_cause(
     window: pd.DataFrame,
     full_history: pd.DataFrame,
 ) -> RootCauseFinding:
+    cost_usd, cost_basis = _estimate_cost_impact_usd(episode, window)
+
     if episode.direction == "over":
         if abs(episode.peak_deviation) > IMPLAUSIBLE_OVER_DEVIATION:
             category = "data_quality_anomaly"
@@ -114,6 +171,8 @@ def classify_root_cause(
             label=ROOT_CAUSE_LABELS[category],
             evidence={"peak_deviation": episode.peak_deviation},
             confidence=round(confidence, 2),
+            estimated_cost_usd=cost_usd,
+            cost_basis=cost_basis,
         )
 
     oversupply_ratio = _renewable_load_ratio(window, episode.start, episode.end)
@@ -150,4 +209,6 @@ def classify_root_cause(
             "avg_deviation": episode.avg_deviation,
         },
         confidence=round(confidence, 2),
+        estimated_cost_usd=cost_usd,
+        cost_basis=cost_basis,
     )
