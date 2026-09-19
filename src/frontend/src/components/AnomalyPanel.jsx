@@ -95,6 +95,15 @@ export default function AnomalyPanel({ anomalies, emptyMessage }) {
                   {a.label}
                 </span>
               </div>
+              {a.recommended_action && (
+                <div className="anomaly-card__cause" style={{ color: "var(--status-good)" }}>
+                  <Icon name="checkCircle" size={14} />
+                  <span>
+                    <strong>Recommended Action: </strong>
+                    {a.recommended_action}
+                  </span>
+                </div>
+              )}
             </div>
           );
         })}

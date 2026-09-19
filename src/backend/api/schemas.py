@@ -98,6 +98,7 @@ def serialize_anomalies(findings) -> list[dict[str, Any]]:
                 "confidence": f.confidence,
                 "estimated_cost_usd": f.estimated_cost_usd,
                 "cost_basis": f.cost_basis,
+                "recommended_action": f.recommended_action,
             }
         )
     return out
@@ -197,6 +198,34 @@ def serialize_curtailment(plan) -> dict[str, Any]:
                 "shed_mw": a.shed_mw,
             }
             for a in plan.recommended_actions
+        ],
+    }
+
+
+def serialize_regional_distribution(plan) -> dict[str, Any]:
+    return {
+        "total_demand_mw": plan.total_demand_mw,
+        "total_allocated_mw": plan.total_allocated_mw,
+        "total_unmet_mw": plan.total_unmet_mw,
+        "overall_fulfillment_pct": plan.overall_fulfillment_pct,
+        "total_transmission_cost_usd": plan.total_transmission_cost_usd,
+        "total_station_capacity_mw": plan.total_station_capacity_mw,
+        "feasible": plan.feasible,
+        "system_recommendation": plan.system_recommendation,
+        "regions": [
+            {
+                "region": r.region,
+                "population": r.population,
+                "demand_mw": r.demand_mw,
+                "nearest_station": r.nearest_station,
+                "nearest_station_distance_km": r.nearest_station_distance_km,
+                "allocated_mw": r.allocated_mw,
+                "unmet_mw": r.unmet_mw,
+                "fulfillment_pct": r.fulfillment_pct,
+                "transmission_cost_usd": r.transmission_cost_usd,
+                "recommended_action": r.recommended_action,
+            }
+            for r in plan.regions
         ],
     }
 
@@ -326,6 +355,9 @@ def serialize_run_result(state: dict) -> dict[str, Any]:
             "anomalies": serialize_anomalies(state["anomalies"]),
             "load_balance": serialize_load_balance(state["load_balance"]),
             "curtailment": serialize_curtailment(state["curtailment"]),
+            "regional_distribution": serialize_regional_distribution(state["regional_distribution"])
+            if state.get("regional_distribution")
+            else None,
             "business_impact": serialize_business_impact(state["curtailment"], state.get("anomalies")),
             "facts": serialize_facts(state.get("facts")),
             "manifest": state.get("manifest"),

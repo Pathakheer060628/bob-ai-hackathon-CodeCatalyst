@@ -35,6 +35,7 @@ class TemplateNarrationProvider:
             narrate_anomalies(context.get("anomalies", [])),
             narrate_load_balance(context.get("load_balance")),
             narrate_curtailment(context.get("curtailment")),
+            narrate_regional_distribution(context.get("regional_distribution")),
         ]
         return "\n\n".join(p for p in parts if p)
 
@@ -110,6 +111,22 @@ def narrate_curtailment(plan) -> str:
         f"- Curtailment avoided: {plan.curtailment_avoided_mwh:,.1f} MWh "
         f"({plan.curtailment_reduction_pct:.1f}% reduction).",
     ]
+    return "\n".join(lines)
+
+
+def narrate_regional_distribution(plan) -> str:
+    if not plan or not plan.regions:
+        return ""
+    lines = [
+        "**Regional Power Distribution** (population-weighted demand at peak forecast hour, "
+        "routed from the nearest generation hub, least-cost routing):",
+        f"- {plan.overall_fulfillment_pct:.1f}% of {plan.total_demand_mw:,.0f} MW peak demand covered "
+        f"across {len(plan.regions)} regions (${plan.total_transmission_cost_usd:,.0f} transmission cost).",
+    ]
+    if plan.total_unmet_mw > 0:
+        lines.append(f"- WARNING: {plan.total_unmet_mw:,.0f} MW shortfall -- {plan.system_recommendation}")
+    else:
+        lines.append("- Every region's need is fully covered within station capacity.")
     return "\n".join(lines)
 
 

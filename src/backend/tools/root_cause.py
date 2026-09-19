@@ -63,6 +63,36 @@ ROOT_CAUSE_LABELS = {
     "unknown": "Unknown -- evidence insufficient or conflicting to assign a cause",
 }
 
+# One concrete, actionable recommendation per root-cause category -- every
+# anomaly finding gets a "what should an operator actually do about this",
+# not just a label for what happened.
+ROOT_CAUSE_RECOMMENDATIONS = {
+    "curtailment_likely": (
+        "Issue a curtailment order for this asset during the episode window, or shift the surplus into "
+        "storage/demand response if available -- the LP curtailment plan already prices this trade-off."
+    ),
+    "weather_driven_low_resource": (
+        "No asset-specific fix -- this is a shared weather lull. Cover the shortfall from dispatchable "
+        "generation (see the load-balancing plan) and treat it as expected seasonal variability, not a fault."
+    ),
+    "equipment_or_availability_fault": (
+        "Dispatch a technical/SCADA check for this asset -- isolated underperformance while other assets "
+        "track normal is the signature of a turbine trip, inverter fault, or unplanned outage."
+    ),
+    "favorable_resource_surplus": (
+        "Benign for now, but monitor: sustained overperformance raises near-term curtailment risk. Pre-stage "
+        "storage headroom or demand-response capacity ahead of the next forecast run."
+    ),
+    "data_quality_anomaly": (
+        "Verify the underlying meter/telemetry feed for this asset before acting on it -- the deviation "
+        "magnitude is outside physically plausible bounds, more likely a data artefact than real output."
+    ),
+    "unknown": (
+        "Insufficient evidence to recommend a specific action -- flag for manual operator review rather than "
+        "an automated response."
+    ),
+}
+
 
 @dataclass
 class RootCauseFinding:
@@ -73,6 +103,7 @@ class RootCauseFinding:
     confidence: float = 0.5
     estimated_cost_usd: float = 0.0
     cost_basis: str = ""
+    recommended_action: str = ""
 
 
 def _estimate_cost_impact_usd(episode: AnomalyEpisode, window: pd.DataFrame) -> tuple[float, str]:
@@ -173,6 +204,7 @@ def classify_root_cause(
             confidence=round(confidence, 2),
             estimated_cost_usd=cost_usd,
             cost_basis=cost_basis,
+            recommended_action=ROOT_CAUSE_RECOMMENDATIONS[category],
         )
 
     oversupply_ratio = _renewable_load_ratio(window, episode.start, episode.end)
@@ -211,4 +243,5 @@ def classify_root_cause(
         confidence=round(confidence, 2),
         estimated_cost_usd=cost_usd,
         cost_basis=cost_basis,
+        recommended_action=ROOT_CAUSE_RECOMMENDATIONS[category],
     )

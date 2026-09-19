@@ -1,7 +1,8 @@
 """LangGraph pipeline wiring the deterministic grid-optimisation tools together.
 
 data_quality_node -> [blocked | forecast_node -> anomalies_node ->
-load_balance_node -> curtailment_node -> facts_node -> narrate_node -> verify_node]
+load_balance_node -> curtailment_node -> regional_distribution_node ->
+facts_node -> narrate_node -> verify_node]
 
 The data-quality gate runs first and can short-circuit the run to `blocked` before
 any forecast/optimizer/narrator code sees the data (GridSentinel spec ss20: a run
@@ -43,10 +44,9 @@ from backend.tools.forecasting import (
     forecast_renewable_supply,
 )
 from backend.tools.load_balancing import LoadBalanceConfig, LoadBalancePlan, solve_load_balance
+from backend.tools.regional_distribution import RegionalDistributionPlan, solve_regional_distribution
 from backend.tools.root_cause import RootCauseFinding, classify_root_cause
 from backend.agents.verifier import VerificationResult, verify_brief
-
-MAX_ANOMALY_FINDINGS = 8
 
 MODEL_VERSIONS = {
     "forecast": "seasonal-naive-trend-v1",
@@ -91,6 +91,7 @@ class GridState(TypedDict, total=False):
     anomalies: list[RootCauseFinding]
     load_balance: LoadBalancePlan
     curtailment: CurtailmentPlan
+    regional_distribution: RegionalDistributionPlan
     facts: list[Fact]
     manifest: dict[str, Any]
     narrative: str
@@ -216,9 +217,9 @@ def node_detect_anomalies_and_root_cause(state: GridState) -> dict:
     # Rank by estimated $ cost exposure first, not just how long an episode lasted or
     # how confident the root-cause call is -- a low-confidence, short-lived anomaly on
     # a large asset can carry more real cost than a long, high-confidence one on a
-    # small asset, and that's what an operator should see first.
+    # small asset, and that's what an operator should see first. Every detected episode
+    # is returned (with its own recommended action) -- none are dropped.
     findings.sort(key=lambda f: (f.estimated_cost_usd, f.episode.duration_hours), reverse=True)
-    findings = findings[:MAX_ANOMALY_FINDINGS]
 
     return {"anomalies": findings, "progress_log": log_lines}
 
@@ -249,6 +250,28 @@ def node_curtailment(state: GridState) -> dict:
         f"({plan.curtailment_reduction_pct:.1f}% reduction vs. baseline)."
     )
     return {"curtailment": plan, "progress_log": [msg]}
+
+
+def node_regional_distribution(state: GridState) -> dict:
+    # The forecast's peak hour is the representative "worst case" snapshot for
+    # regional routing -- if every region's need is coverable at peak demand,
+    # it's coverable at every lighter hour too.
+    peak_demand_mw = state["forecast"].peak.forecast_mw
+    plan = solve_regional_distribution(peak_demand_mw)
+
+    if plan.total_unmet_mw > 0.5:
+        msg = (
+            f"Regional distribution: {plan.overall_fulfillment_pct:.1f}% of peak demand covered "
+            f"at least-cost routing -- {plan.total_unmet_mw:,.0f} MW shortfall identified, fallback "
+            "recommendations attached per region."
+        )
+    else:
+        msg = (
+            f"Regional distribution: 100% of peak demand ({plan.total_demand_mw:,.0f} MW) covered "
+            f"across {len(plan.regions)} regions at least-cost routing "
+            f"(${plan.total_transmission_cost_usd:,.0f} transmission cost)."
+        )
+    return {"regional_distribution": plan, "progress_log": [msg]}
 
 
 @lru_cache(maxsize=1)
@@ -308,6 +331,7 @@ def _narration_context(state: GridState) -> dict:
         "anomalies": state.get("anomalies", []),
         "load_balance": state.get("load_balance"),
         "curtailment": state.get("curtailment"),
+        "regional_distribution": state.get("regional_distribution"),
     }
 
 
@@ -339,6 +363,7 @@ def build_graph():
     graph.add_node("anomalies", node_detect_anomalies_and_root_cause)
     graph.add_node("load_balance", node_load_balance)
     graph.add_node("curtailment", node_curtailment)
+    graph.add_node("regional_distribution", node_regional_distribution)
     graph.add_node("facts", node_facts)
     graph.add_node("narrate", node_narrate)
     graph.add_node("verify", node_verify)
@@ -351,7 +376,8 @@ def build_graph():
     graph.add_edge("forecast", "anomalies")
     graph.add_edge("anomalies", "load_balance")
     graph.add_edge("load_balance", "curtailment")
-    graph.add_edge("curtailment", "facts")
+    graph.add_edge("curtailment", "regional_distribution")
+    graph.add_edge("regional_distribution", "facts")
     graph.add_edge("facts", "narrate")
     graph.add_edge("narrate", "verify")
     graph.add_edge("verify", END)
