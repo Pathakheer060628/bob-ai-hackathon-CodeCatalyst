@@ -776,7 +776,8 @@ input {
   color: var(--text-secondary);
 }
 
-.run-form input {
+.run-form input,
+.run-form select {
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-sm);
   padding: 9px 11px;
@@ -786,11 +787,13 @@ input {
   transition: border-color var(--ease-fast), box-shadow var(--ease-fast), transform var(--ease-fast);
 }
 
-.run-form input:hover {
+.run-form input:hover,
+.run-form select:hover {
   border-color: var(--text-muted);
 }
 
-.run-form input:focus {
+.run-form input:focus,
+.run-form select:focus {
   outline: none;
   border-color: var(--accent);
   box-shadow: 0 0 0 3px var(--accent-soft);

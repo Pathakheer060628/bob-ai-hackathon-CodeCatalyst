@@ -1,6 +1,7 @@
 import { useRuns } from "../context/RunContext.jsx";
 import CurtailmentPanel from "../components/CurtailmentPanel.jsx";
 import CurtailmentChart from "../components/CurtailmentChart.jsx";
+import BusinessImpactPanel from "../components/BusinessImpactPanel.jsx";
 import EmptyRunState from "../components/ui/EmptyRunState.jsx";
 import Icon from "../components/ui/Icon.jsx";
 
@@ -20,6 +21,26 @@ export default function CurtailmentImpact() {
   }
 
   const curtailment = activeResult.curtailment;
+  const businessImpact = activeResult.business_impact;
+  const anomalies = activeResult.anomalies || [];
+
+  if (activeResult.status === "blocked" || !curtailment) {
+    return (
+      <div>
+        <div className="content__heading">
+          <h1>Curtailment Impact</h1>
+          <p>
+            Run {activeRunId} &middot; {activeStatus}
+          </p>
+        </div>
+        <div className="error-banner">
+          <Icon name="alertTriangle" size={16} />
+          This run was blocked before optimization ran (data-quality gate failed), so there's no curtailment plan to
+          show. See the data-quality warnings on the Operator Brief, or start a new run with a wider lookback window.
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -46,6 +67,8 @@ export default function CurtailmentImpact() {
       </section>
 
       <CurtailmentPanel curtailment={curtailment} />
+
+      {businessImpact && <BusinessImpactPanel businessImpact={businessImpact} anomalies={anomalies} />}
     </div>
   );
 }

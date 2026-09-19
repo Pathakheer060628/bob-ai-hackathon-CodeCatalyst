@@ -15,6 +15,7 @@ export default function RunForm({ datasetInfo, onSubmit, disabled }) {
   const [windowEnd, setWindowEnd] = useState(defaultEnd);
   const [lookbackDays, setLookbackDays] = useState(30);
   const [horizonHours, setHorizonHours] = useState(24);
+  const [forecastModel, setForecastModel] = useState("seasonal");
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [advanced, setAdvanced] = useState({});
 
@@ -35,6 +36,7 @@ export default function RunForm({ datasetInfo, onSubmit, disabled }) {
       lookbackDays: Number(lookbackDays),
       horizonHours: Number(horizonHours),
       loadBalanceConfig,
+      forecastModel,
     });
   };
 
@@ -82,6 +84,21 @@ export default function RunForm({ datasetInfo, onSubmit, disabled }) {
             value={horizonHours}
             onChange={(e) => setHorizonHours(e.target.value)}
           />
+        </div>
+        <div className="run-form__field">
+          <label htmlFor="forecast-model">
+            <Icon name="trendingUp" size={14} />
+            Forecast engine
+          </label>
+          <select
+            id="forecast-model"
+            value={forecastModel}
+            onChange={(e) => setForecastModel(e.target.value)}
+            disabled={disabled}
+          >
+            <option value="seasonal">Seasonal-naive (deterministic)</option>
+            <option value="ml">Trained ML model (HistGradientBoostingRegressor)</option>
+          </select>
         </div>
         <div className="run-form__submit">
           <button className="btn btn-primary" type="submit" disabled={disabled}>
