@@ -230,6 +230,20 @@ def serialize_regional_distribution(plan) -> dict[str, Any]:
     }
 
 
+def serialize_algorithm_comparison(comparisons) -> list[dict[str, Any]]:
+    return [
+        {
+            "algorithm": c.algorithm,
+            "label": c.label,
+            "overall_fulfillment_pct": c.overall_fulfillment_pct,
+            "total_unmet_mw": c.total_unmet_mw,
+            "total_transmission_cost_usd": c.total_transmission_cost_usd,
+            "worst_region_fulfillment_pct": c.worst_region_fulfillment_pct,
+        }
+        for c in comparisons or []
+    ]
+
+
 def serialize_business_impact(curtailment, anomalies) -> dict[str, Any]:
     """Two already-computed cost readings for this run, deliberately kept
     separate rather than netted into one number: they cover different time
@@ -358,6 +372,7 @@ def serialize_run_result(state: dict) -> dict[str, Any]:
             "regional_distribution": serialize_regional_distribution(state["regional_distribution"])
             if state.get("regional_distribution")
             else None,
+            "regional_algorithm_comparison": serialize_algorithm_comparison(state.get("regional_algorithm_comparison")),
             "business_impact": serialize_business_impact(state["curtailment"], state.get("anomalies")),
             "facts": serialize_facts(state.get("facts")),
             "manifest": state.get("manifest"),

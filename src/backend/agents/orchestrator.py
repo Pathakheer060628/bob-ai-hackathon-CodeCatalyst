@@ -44,7 +44,11 @@ from backend.tools.forecasting import (
     forecast_renewable_supply,
 )
 from backend.tools.load_balancing import LoadBalanceConfig, LoadBalancePlan, solve_load_balance
-from backend.tools.regional_distribution import RegionalDistributionPlan, solve_regional_distribution
+from backend.tools.regional_distribution import (
+    RegionalDistributionPlan,
+    compare_distribution_algorithms,
+    solve_regional_distribution,
+)
 from backend.tools.root_cause import RootCauseFinding, classify_root_cause
 from backend.agents.verifier import VerificationResult, verify_brief
 
@@ -92,6 +96,7 @@ class GridState(TypedDict, total=False):
     load_balance: LoadBalancePlan
     curtailment: CurtailmentPlan
     regional_distribution: RegionalDistributionPlan
+    regional_algorithm_comparison: list
     facts: list[Fact]
     manifest: dict[str, Any]
     narrative: str
@@ -258,6 +263,7 @@ def node_regional_distribution(state: GridState) -> dict:
     # it's coverable at every lighter hour too.
     peak_demand_mw = state["forecast"].peak.forecast_mw
     plan = solve_regional_distribution(peak_demand_mw)
+    comparison = compare_distribution_algorithms(peak_demand_mw)
 
     if plan.total_unmet_mw > 0.5:
         msg = (
@@ -271,7 +277,11 @@ def node_regional_distribution(state: GridState) -> dict:
             f"across {len(plan.regions)} regions at least-cost routing "
             f"(${plan.total_transmission_cost_usd:,.0f} transmission cost)."
         )
-    return {"regional_distribution": plan, "progress_log": [msg]}
+    return {
+        "regional_distribution": plan,
+        "regional_algorithm_comparison": comparison,
+        "progress_log": [msg],
+    }
 
 
 @lru_cache(maxsize=1)

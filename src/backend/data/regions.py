@@ -17,11 +17,20 @@ What's here:
     pooled dispatchable+renewable capacity reasonably reachable through that
     grid region, not that single named plant's own nameplate rating. Modeling
     all ~200+ GW of Germany's real, fragmented generation fleet as literal
-    individual stations isn't practical for an 8-hub illustrative model, so
-    each hub's capacity is scaled to keep national totals in a realistic
-    range (~100 GW, comfortably above Germany's typical ~50-80 GW demand,
-    matching real-world reserve margins) while keeping the named site as a
-    recognizable geographic anchor for the region.
+    individual stations isn't practical for an 8-hub illustrative model.
+
+    Capacities are deliberately calibrated against the *real* committed
+    dataset, not picked to always succeed: this dataset's actual national
+    demand ranges 33,295-77,549 MW (mean ~56,373 MW, 95th percentile
+    ~71,576 MW -- see `grid_renewable_de_2017_2019.csv`). Each hub's
+    capacity is set to ~90% of its own natural cluster's share of demand
+    *at the historical peak*, and the total (~69,300 MW) sits between the
+    mean and the 95th percentile. The practical effect: an average-demand
+    run is comfortably covered, but a genuine seasonal peak (the kind this
+    real dataset actually contains) produces a real, data-driven regional
+    or national shortfall -- not a permanently-broken demo and not a
+    permanently-perfect one, because neither would be honest about how a
+    real grid with a real reserve margin behaves.
 
 State populations and plant identities are real; capacities and exact
 coordinates are approximate/illustrative (state-capital-as-centroid is a
@@ -72,14 +81,14 @@ REGIONS: list[Region] = [
 ]
 
 STATIONS: list[Station] = [
-    Station("Neurath hub (NRW)", 51.03, 6.66, 26_000.0),
-    Station("Lippendorf hub (Saxony)", 51.19, 12.38, 9_000.0),
-    Station("Staudinger hub (Hesse)", 50.09, 9.05, 8_000.0),
-    Station("Rostock hub (Mecklenburg-Vorpommern)", 54.13, 12.13, 7_000.0),
-    Station("Irsching hub (Bavaria)", 48.62, 11.68, 16_000.0),
-    Station("Mannheim GKM hub (Baden-Württemberg)", 49.45, 8.54, 14_000.0),
-    Station("Moorburg hub (Hamburg)", 53.48, 9.95, 10_000.0),
-    Station("Brokdorf hub (Schleswig-Holstein)", 53.85, 9.35, 13_000.0),
+    Station("Neurath hub (NRW)", 51.03, 6.66, 15_000.0),
+    Station("Lippendorf hub (Saxony)", 51.19, 12.38, 12_000.0),
+    Station("Staudinger hub (Hesse)", 50.09, 9.05, 8_700.0),
+    Station("Rostock hub (Mecklenburg-Vorpommern)", 54.13, 12.13, 1_400.0),
+    Station("Irsching hub (Bavaria)", 48.62, 11.68, 11_000.0),
+    Station("Mannheim GKM hub (Baden-Württemberg)", 49.45, 8.54, 10_000.0),
+    Station("Moorburg hub (Hamburg)", 53.48, 9.95, 8_800.0),
+    Station("Brokdorf hub (Schleswig-Holstein)", 53.85, 9.35, 2_400.0),
 ]
 
 TOTAL_POPULATION = sum(r.population for r in REGIONS)

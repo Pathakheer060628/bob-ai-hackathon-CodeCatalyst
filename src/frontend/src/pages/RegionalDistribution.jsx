@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useRuns } from "../context/RunContext.jsx";
 import RegionalDistributionPanel from "../components/RegionalDistributionPanel.jsx";
+import AlgorithmComparisonPanel from "../components/AlgorithmComparisonPanel.jsx";
 import EmptyRunState from "../components/ui/EmptyRunState.jsx";
 import Icon from "../components/ui/Icon.jsx";
 
@@ -51,6 +52,10 @@ export default function RegionalDistribution() {
       </div>
 
       <RegionalDistributionPanel regional={regional} sortBy={sortBy} onSortByChange={setSortBy} />
+
+      {activeResult.regional_algorithm_comparison?.length > 0 && (
+        <AlgorithmComparisonPanel comparisons={activeResult.regional_algorithm_comparison} />
+      )}
     </div>
   );
 }
