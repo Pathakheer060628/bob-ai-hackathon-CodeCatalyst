@@ -44,6 +44,24 @@ export default function OptimizationPlan() {
 
   const plan = activeResult.load_balance;
 
+  if (activeResult.status === "blocked" || !plan) {
+    return (
+      <div>
+        <div className="content__heading">
+          <h1>Optimization Plan</h1>
+          <p>
+            Run {activeRunId} &middot; {activeStatus}
+          </p>
+        </div>
+        <div className="error-banner">
+          <Icon name="alertTriangle" size={16} />
+          This run was blocked before optimization ran (data-quality gate failed), so there's no load-balancing plan
+          to show. See the data-quality warnings on the Operator Brief, or start a new run with a wider lookback window.
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div>
       <div className="content__heading">

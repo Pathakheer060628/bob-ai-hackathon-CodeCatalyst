@@ -81,6 +81,12 @@ export default function AnomalyPanel({ anomalies, emptyMessage }) {
                 <span className="anomaly-card__stat">
                   Peak deviation: <strong>{(a.peak_deviation * 100).toFixed(1)}%</strong>
                 </span>
+                {a.estimated_cost_usd > 0 && (
+                  <span className="anomaly-card__stat">
+                    Est. cost exposure: <strong style={{ color: "var(--status-warning)" }}>${a.estimated_cost_usd.toLocaleString()}</strong>
+                    {a.cost_basis ? ` (${a.cost_basis})` : ""}
+                  </span>
+                )}
               </div>
               <div className="anomaly-card__cause">
                 <Icon name="alertTriangle" size={14} />

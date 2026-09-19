@@ -96,6 +96,8 @@ def serialize_anomalies(findings) -> list[dict[str, Any]]:
                 "label": f.label,
                 "evidence": f.evidence,
                 "confidence": f.confidence,
+                "estimated_cost_usd": f.estimated_cost_usd,
+                "cost_basis": f.cost_basis,
             }
         )
     return out
@@ -174,11 +176,19 @@ def serialize_load_balance(plan) -> dict[str, Any]:
 
 
 def serialize_curtailment(plan) -> dict[str, Any]:
+    baseline_cost = plan.baseline.total_cost if plan.baseline.feasible else None
+    optimized_cost = plan.optimized.total_cost if plan.optimized.feasible else None
+    net_savings = (
+        round(baseline_cost - optimized_cost, 2) if baseline_cost is not None and optimized_cost is not None else None
+    )
     return {
         "baseline_curtailed_mwh": plan.baseline_curtailed_mwh,
         "optimized_curtailed_mwh": plan.optimized_curtailed_mwh,
         "curtailment_avoided_mwh": plan.curtailment_avoided_mwh,
         "curtailment_reduction_pct": plan.curtailment_reduction_pct,
+        "baseline_total_cost_usd": baseline_cost,
+        "optimized_total_cost_usd": optimized_cost,
+        "net_savings_usd": net_savings,
         "recommended_actions": [
             {
                 "hour_index": a.hour_index,
@@ -188,6 +198,41 @@ def serialize_curtailment(plan) -> dict[str, Any]:
             }
             for a in plan.recommended_actions
         ],
+    }
+
+
+def serialize_business_impact(curtailment, anomalies) -> dict[str, Any]:
+    """Two already-computed cost readings for this run, deliberately kept
+    separate rather than netted into one number: they cover different time
+    windows and different kinds of $ impact, and combining them would produce
+    a misleading combined figure.
+
+    - `optimization_value_usd`: baseline (no flexibility) LP cost minus the
+      optimized (full flexibility) LP cost, over the *forecast horizon* --
+      the real, realized savings this run's recommended plan delivers vs.
+      doing nothing. This is what drives the profit/breakeven verdict.
+    - `anomaly_cost_exposure_usd`: the sum of each anomaly's estimated $
+      exposure (see backend/tools/root_cause.py), over the *lookback
+      window* -- informational risk context from the historical data this
+      run analyzed, not a cost the optimized plan already avoided.
+    """
+    feasible = curtailment.baseline.feasible and curtailment.optimized.feasible
+    optimization_value = (
+        round(curtailment.baseline.total_cost - curtailment.optimized.total_cost, 2) if feasible else 0.0
+    )
+    anomaly_cost_exposure = round(sum(f.estimated_cost_usd for f in anomalies or []), 2)
+
+    if not feasible:
+        verdict = "undetermined"
+    elif optimization_value > 0:
+        verdict = "profit"
+    else:
+        verdict = "breakeven"
+
+    return {
+        "optimization_value_usd": optimization_value,
+        "anomaly_cost_exposure_usd": anomaly_cost_exposure,
+        "verdict": verdict,
     }
 
 
@@ -281,6 +326,7 @@ def serialize_run_result(state: dict) -> dict[str, Any]:
             "anomalies": serialize_anomalies(state["anomalies"]),
             "load_balance": serialize_load_balance(state["load_balance"]),
             "curtailment": serialize_curtailment(state["curtailment"]),
+            "business_impact": serialize_business_impact(state["curtailment"], state.get("anomalies")),
             "facts": serialize_facts(state.get("facts")),
             "manifest": state.get("manifest"),
             "scenario": state.get("manifest", {}).get("scenario") if state.get("manifest") else None,

@@ -17,7 +17,7 @@ export default function LoadBalancePanel({ plan }) {
     </div>
   );
 
-  if (!plan.feasible) {
+  if (!plan?.feasible) {
     return (
       <div className="card">
         {header}
