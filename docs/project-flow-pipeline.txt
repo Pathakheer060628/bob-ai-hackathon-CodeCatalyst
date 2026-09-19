@@ -1,0 +1,332 @@
+GridSentinel — Project Flow & Pipeline Documentation
+=====================================================
+
+This document explains, end to end, how a single "run" moves through
+GridSentinel: from the operator clicking "Run Optimisation" in the browser,
+through the FastAPI backend and the LangGraph pipeline, to the results
+rendered back on the dashboard and the exported PDF brief.
+
+
+1. HIGH-LEVEL ARCHITECTURE
+---------------------------
+
+  Browser (React 18 + Vite, port 5173)
+      |
+      |  fetch("/api/...")  -- proxied by Vite dev server
+      v
+  FastAPI backend (uvicorn, port 8000)
+      |
+      |  POST /api/runs           -> creates a run record (SQLite)
+      |  GET  /api/runs/{id}/stream -> Server-Sent Events (SSE)
+      v
+  LangGraph pipeline (backend/agents/orchestrator.py)
+      |
+      |  8 nodes, each backed by deterministic logic in backend/tools/*
+      v
+  SQLite (backend/data/gridsentinel.db) stores the run's config,
+  progress log, and final JSON result for later retrieval / PDF export.
+
+Nothing in the pipeline is a black box: every node is a plain Python
+function operating on a typed dataclass, and the LLM narration step
+(optional, off by default) is deliberately the *last* thing that touches
+the numbers, followed immediately by a verifier that checks the narration
+against the computed state.
+
+
+2. FRONTEND -> BACKEND REQUEST FLOW
+-------------------------------------
+
+Step-by-step, what happens when an operator starts a run from the
+"New Run" page:
+
+ 1. On load, the app calls GET /api/dataset/info to learn the dataset's
+    real date bounds (2017-01-01 .. 2019-12-31) and pings the backend
+    every 15s (GET /api/dataset/info) to drive the "Backend online/
+    offline" pill in the top bar (see frontend/src/context/RunContext.jsx).
+
+ 2. The operator sets:
+      - "as of" timestamp (window_end)
+      - lookback window in days (how much history feeds the seasonal
+        models / anomaly detection)
+      - forecast horizon in hours (1-72)
+      - optional advanced load-balancing constraints (dispatchable
+        capacity, storage capacity/rate/efficiency/initial SOC, max
+        demand-response fraction) -- left blank, these are auto-derived
+        from the peak load in the selected window.
+
+ 3. Clicking "Run Optimisation" calls POST /api/runs. The backend:
+      - loads the full dataset (cached in memory via functools.lru_cache)
+      - slices out the requested [window_end - lookback_days, window_end]
+        window and validates it falls inside the dataset's real bounds
+        (400 error if not)
+      - computes any auto-derived load-balancing defaults from the
+        window's peak load
+      - creates a Run row in SQLite with status "pending"
+      - returns { run_id, status }
+
+ 4. The frontend immediately opens an EventSource to
+    GET /api/runs/{run_id}/stream. This endpoint re-resolves the same
+    history window, builds a PipelineRequest, and invokes the LangGraph
+    pipeline via stream_pipeline(), which yields after every node
+    completes. Each yielded progress-log line is:
+      - appended to the run's persisted progress_log (SQLite)
+      - pushed to the browser as an SSE "progress" event
+        { node, message }
+    The Pipeline Stepper / Progress Feed components render these live,
+    stage by stage -- no fabricated progress bar, only stages that have
+    actually reported an event are marked done/active.
+
+ 5. When the graph reaches END, the backend serializes the final state
+    into JSON (serialize_run_result), marks the run "done" in SQLite,
+    and emits a terminal SSE "result" event with the full payload. The
+    frontend closes the stream and unlocks the result pages (Anomaly
+    Intelligence, Optimization Plan, Curtailment Impact, Operator Brief).
+
+ 6. From any result page, GET /api/runs/{run_id}/report.pdf regenerates
+    a ReportLab PDF from the same persisted JSON result -- no re-running
+    the pipeline.
+
+
+3. THE LANGGRAPH PIPELINE (backend/agents/orchestrator.py)
+-------------------------------------------------------------
+
+The pipeline is a LangGraph StateGraph over a single typed state dict
+(GridState). Its topology:
+
+  data_quality --(hard_fail?)--> blocked --> END
+       |
+       (pass)
+       v
+  forecast -> anomalies -> load_balance -> curtailment -> facts
+       -> narrate -> verify -> END
+
+Every node returns a partial dict that LangGraph merges into GridState;
+progress_log is an Annotated[list[str], operator.add] field, so each
+node's log lines accumulate rather than overwrite. No node computes
+real math itself beyond simple aggregation -- all the actual algorithms
+live in backend/tools/*, called from thin node wrapper functions. This
+keeps the orchestration layer auditable: you can read orchestrator.py
+top to bottom and see exactly what's called, in what order, with what
+inputs.
+
+Stage-by-stage:
+
+--- Stage 1: data_quality (backend/tools/data_quality.py) -------------
+Runs BEFORE anything else and can short-circuit the whole run. Checks
+the sliced history window for:
+  - completeness_score = actual_hours / expected_hours (from the gaps
+    in the DatetimeIndex)
+  - duplicate timestamps
+  - max_gap_hours between consecutive readings
+  - negative load / negative generation hours (physically impossible)
+HARD FAILS (blocks the run, routes to the "blocked" node instead of
+"forecast") when: fewer than 168 hours of data (need a full week for a
+seasonal profile), completeness < 85%, or any duplicate timestamps.
+Soft issues (85-98% complete, gaps > 3h, negative readings) are logged
+as warnings but do not block. This gate exists so "a new run cannot
+proceed to optimization on data that fails a hard quality check" -- the
+optimizer and narrator never see uninspected data.
+
+--- Stage 2: forecast (backend/tools/forecasting.py) -------------------
+Two independent, fully deterministic (non-ML) forecasters:
+  - Demand forecast: builds a seasonal profile (median + std of load
+    grouped by day-of-week x hour-of-day) over the trailing lookback
+    window, computes a trend_factor from the last 7 days vs. seasonal
+    expectation (clipped to [0.8, 1.3]), and forecasts each hour as
+    baseline_median * trend_factor with a 95% band (+-1.96 * std).
+    Hours where (forecast - baseline)/std exceeds spike_std_threshold
+    (default 2.0) are flagged is_spike.
+  - Renewable supply forecast: month x hour-of-day median capacity
+    factor (solar+wind combined) applied to the most recently observed
+    installed capacity -- weather-driven, so no day-of-week dependence.
+  - Backtest: rolling-origin re-forecast at several earlier cutoffs,
+    compared against actuals and a same-hour-last-week naive baseline
+    -> MAE, RMSE, MAPE, and improvement vs. naive.
+If a what-if scenario is attached to the request (renewable_scale /
+demand_scale multipliers), it is applied here to the forecast outputs
+only -- never to raw history -- and every downstream log/fact/narrative
+line for a scaled run is explicitly labelled "SIMULATED SCENARIO".
+
+--- Stage 3: anomalies (backend/tools/anomaly_detection.py + root_cause.py)
+For each renewable asset class (solar, wind_onshore, wind_offshore):
+  - Builds a seasonal expected capacity-factor profile (median/std by
+    month x hour) from the full dataset.
+  - Runs a two-sided CUSUM (cumulative sum control chart) on the
+    residual between actual and expected capacity factor, with a slack
+    band and a decision threshold both scaled by the seasonal std.
+    Sustained deviation past the threshold flags "over" (over-
+    performance) or "under" (under-performance); adjacent flagged hours
+    are grouped into anomaly episodes (start, end, duration, average
+    and peak deviation).
+  - Each episode is then passed through a rule-based root-cause
+    classifier (no model call): overperformance episodes are split into
+    "data quality anomaly" (implausible magnitude) vs. "favorable
+    resource surplus" (benign, raises curtailment risk); under-
+    performance episodes are split by process of elimination into
+    "curtailment likely" (renewable/load ratio very high), "weather-
+    driven low resource" (correlated dip across other asset classes),
+    or "possible equipment/availability fault" (isolated to one asset).
+The top 8 findings (by duration) are kept for the brief.
+
+--- Stage 4: load_balance (backend/tools/load_balancing.py) ------------
+Solves an hourly linear program with scipy.optimize.linprog (HiGHS
+solver) over the forecast horizon. Per hour, 7 decision variables:
+dispatch, charge, discharge, shed (demand response), curtail, state of
+charge (soc), and unmet demand. Constraints per hour: power balance
+(dispatch + discharge - charge - curtail + shed + unmet = demand -
+renewable) and battery SOC continuity (efficiency-weighted charge/
+discharge against the previous hour's SOC). Illustrative $/MWh costs:
+dispatch 60, shed 200, curtail 150, charge/discharge cycling 2 each,
+unmet demand 5000 (a very high penalty so the LP always stays feasible,
+with unmet demand used only as an absolute last resort). Bounds come
+from the run's LoadBalanceConfig (dispatchable capacity, storage
+capacity/rate, max demand-response fraction), auto-derived from peak
+load when not supplied.
+
+--- Stage 5: curtailment (backend/tools/curtailment.py) ----------------
+Solves the same load-balancing LP twice on the identical forecast: once
+as a "baseline" with storage and demand-response zeroed out (only
+dispatch can respond, so curtailment is whatever it has to be), and
+once "optimized" with the full configured flexibility. The difference
+in curtailed MWh between the two is the curtailment avoided by having
+storage/DR available -- this isolates the concrete operational value of
+flexibility rather than just reporting a raw curtailment number.
+
+--- Stage 6: facts (backend/tools/facts.py) -----------------------------
+Computes nothing new. Wraps every headline number already produced by
+the earlier stages (peak demand, spike count, forecast MAE and
+improvement vs. naive, each anomaly's average deviation, load-balance
+cost and unmet demand, curtailment avoided and reduction %) into
+provenance-tagged Fact records: a fact_id, the metric, its value/unit,
+a plain-English description of how it was calculated, and the time
+window/entity it applies to. This is the ledger the "trace any number
+back to its source" endpoint (GET /api/runs/{id}/facts/{fact_id}) reads
+from, and it also stamps a reproducibility manifest (data window, model
+version tags, git commit SHA, a hash of the load-balancing config, and
+the active scenario if any).
+
+--- Stage 7: narrate (backend/llm/provider.py, bob_provider.py) --------
+Turns the computed dataclasses into operator-readable prose. Two
+providers, selected by the NARRATION_PROVIDER env var:
+  - "template" (default, fully offline): plain f-string templates over
+    the forecast/anomaly/load-balance/curtailment dataclasses. Zero
+    network calls, zero risk of inventing numbers, because it only ever
+    formats numbers that are already in the state.
+  - "bob" (IBM watsonx.ai / Granite): builds the exact same structured
+    summary as the template provider, then asks the watsonx.ai text-
+    generation API to rephrase it into flowing prose under an explicit
+    system prompt that forbids introducing new numbers. Requires
+    WATSONX_API_KEY / WATSONX_PROJECT_ID; the integration code is real
+    and wired but has not been exercised in this sandbox (no outbound
+    network / API key configured here).
+
+--- Stage 8: verify (backend/agents/verifier.py) ------------------------
+The safety net for stage 7. Builds a "trusted" set from every numeric
+value actually present in the computed state (forecast figures,
+anomaly durations/deviations, load-balance and curtailment totals),
+then regex-extracts every number that appears in the narrated text and
+checks each one against the trusted set (exact match or within 1%
+relative tolerance, to absorb rounding). If every number in the prose
+traces back to something the pipeline actually computed, the run is
+marked "verified"; if any number can't be matched, the run is marked
+"degraded" and the unverified numbers are surfaced in both the UI badge
+and the PDF report. This node runs regardless of which narration
+provider produced the text, so an LLM-generated brief gets exactly the
+same scrutiny as the offline template.
+
+
+4. THE "BLOCKED" PATH
+-----------------------
+
+If stage 1 (data_quality) hard-fails, the graph routes straight to a
+"blocked" node instead of forecast, and none of stages 2-8 ever run --
+the optimizer and narrator never see data that failed a hard quality
+check. serialize_run_result() detects this case and returns a minimal
+payload ({ status: "blocked", data_quality: {...}, progress_log }) with
+no forecast/anomaly/load-balance/curtailment/narrative keys, and the
+PDF exporter renders a red "RUN BLOCKED" banner with the specific
+hard-fail reasons instead of a normal brief.
+
+
+5. PERSISTENCE (backend/api/db.py, run_store.py, models.py)
+---------------------------------------------------------------
+
+A single SQLite file (backend/data/gridsentinel.db) via SQLAlchemy.
+One table, "runs": id, status (pending/running/done/error), created_at,
+window_end, lookback_days, horizon_hours, config (JSON), scenario
+(JSON), result (JSON -- the full serialized pipeline output), progress_log
+(JSON list of SSE lines), error. RunStore is a thin repository
+(create / get / list_recent / mark_running / append_progress /
+mark_done / mark_error) used by both the run-creation endpoint and the
+SSE streaming endpoint, so a run's full history survives backend
+restarts and can be revisited from the Run History page without
+re-running the pipeline.
+
+
+6. API SURFACE (backend/api/main.py)
+----------------------------------------
+
+  GET  /api/dataset/info                real dataset date bounds
+  POST /api/runs                        create a run (returns run_id)
+  GET  /api/runs                        list recent run summaries
+  GET  /api/runs/{run_id}/stream        SSE: runs the pipeline live,
+                                         streams progress + final result
+  GET  /api/runs/{run_id}                full persisted run (status,
+                                         result, error) -- no re-run
+  GET  /api/runs/{run_id}/facts/{fact_id}  provenance lookup for one
+                                         number shown in the brief
+  GET  /api/runs/{run_id}/manifest      reproducibility manifest
+  GET  /api/runs/{run_id}/report.pdf    ReportLab PDF export
+
+
+7. FRONTEND ROUTES (frontend/src/App.jsx, src/pages/*)
+-----------------------------------------------------------
+
+  /              CommandCenter.jsx        dashboard: recent runs,
+                                           backend status, forecast
+                                           preview
+  /new-run       NewRun.jsx                configure + launch a run,
+                                           live SSE stage progress
+  /anomalies     AnomalyIntelligence.jsx   renewable anomaly episodes +
+                                           root-cause labels
+  /optimization  OptimizationPlan.jsx      load-balancing energy-flow
+                                           view + hourly dispatch table
+  /curtailment   CurtailmentImpact.jsx     baseline vs. optimized
+                                           curtailment comparison
+  /brief         OperatorBrief.jsx         narrated brief text,
+                                           verification badge, PDF link
+  /history       RunHistory.jsx            table of all past runs
+  /runs/:runId   RunDetail.jsx             single run detail + links
+                                           into the other views for it
+  *              NotFound.jsx              404 fallback
+
+All app-wide state (dataset bounds, backend connectivity pill, recent
+runs list, the "active" run a viewer is looking at) lives in
+frontend/src/context/RunContext.jsx and is read by every routed page
+instead of being re-fetched independently.
+
+
+8. SUMMARY: ONE RUN, TOP TO BOTTOM
+--------------------------------------
+
+  1. Operator picks a window + horizon on /new-run.
+  2. POST /api/runs -> SQLite row created, status "pending".
+  3. Browser opens SSE stream -> backend runs the LangGraph pipeline.
+  4. data_quality gate: pass (with/without warnings) or hard-block.
+  5. forecast: seasonal-naive demand forecast + renewable supply
+     forecast + rolling-origin backtest (+ optional scenario scaling).
+  6. anomalies: CUSUM detection per renewable asset -> rule-based
+     root-cause classification, top 8 kept.
+  7. load_balance: scipy HiGHS LP solves dispatch/storage/shed/curtail
+     schedule for the forecast horizon.
+  8. curtailment: same LP re-solved without storage/DR as a baseline,
+     to isolate the MWh curtailment avoided by having flexibility.
+  9. facts: every headline number packaged with provenance + a
+     reproducibility manifest.
+ 10. narrate: template (offline) or watsonx/Bob turns the numbers into
+     operator prose.
+ 11. verify: every number in the prose is checked against the trusted,
+     computed set -> "verified" or "degraded".
+ 12. Result persisted to SQLite, streamed to the browser, rendered
+     across the Anomaly Intelligence / Optimization Plan / Curtailment
+     Impact / Operator Brief pages, and exportable as a PDF at any time.
