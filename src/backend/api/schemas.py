@@ -39,6 +39,7 @@ class RunCreateRequest(BaseModel):
     horizon_hours: int = Field(24, ge=1, le=72)
     load_balance_config: LoadBalanceConfigIn | None = None
     scenario: ScenarioConfigIn | None = None
+    forecast_model: str = Field("seasonal", pattern="^(seasonal|ml)$")
 
 
 def to_load_balance_config(payload: LoadBalanceConfigIn | None, peak_load_mw: float) -> LoadBalanceConfig | None:
@@ -95,6 +96,9 @@ def serialize_anomalies(findings) -> list[dict[str, Any]]:
                 "label": f.label,
                 "evidence": f.evidence,
                 "confidence": f.confidence,
+                "estimated_cost_usd": f.estimated_cost_usd,
+                "cost_basis": f.cost_basis,
+                "recommended_action": f.recommended_action,
             }
         )
     return out
@@ -173,11 +177,19 @@ def serialize_load_balance(plan) -> dict[str, Any]:
 
 
 def serialize_curtailment(plan) -> dict[str, Any]:
+    baseline_cost = plan.baseline.total_cost if plan.baseline.feasible else None
+    optimized_cost = plan.optimized.total_cost if plan.optimized.feasible else None
+    net_savings = (
+        round(baseline_cost - optimized_cost, 2) if baseline_cost is not None and optimized_cost is not None else None
+    )
     return {
         "baseline_curtailed_mwh": plan.baseline_curtailed_mwh,
         "optimized_curtailed_mwh": plan.optimized_curtailed_mwh,
         "curtailment_avoided_mwh": plan.curtailment_avoided_mwh,
         "curtailment_reduction_pct": plan.curtailment_reduction_pct,
+        "baseline_total_cost_usd": baseline_cost,
+        "optimized_total_cost_usd": optimized_cost,
+        "net_savings_usd": net_savings,
         "recommended_actions": [
             {
                 "hour_index": a.hour_index,
@@ -187,6 +199,137 @@ def serialize_curtailment(plan) -> dict[str, Any]:
             }
             for a in plan.recommended_actions
         ],
+    }
+
+
+def serialize_regional_distribution(plan) -> dict[str, Any]:
+    return {
+        "total_demand_mw": plan.total_demand_mw,
+        "total_allocated_mw": plan.total_allocated_mw,
+        "total_unmet_mw": plan.total_unmet_mw,
+        "overall_fulfillment_pct": plan.overall_fulfillment_pct,
+        "total_transmission_cost_usd": plan.total_transmission_cost_usd,
+        "total_station_capacity_mw": plan.total_station_capacity_mw,
+        "feasible": plan.feasible,
+        "system_recommendation": plan.system_recommendation,
+        "regions": [
+            {
+                "region": r.region,
+                "population": r.population,
+                "demand_mw": r.demand_mw,
+                "nearest_station": r.nearest_station,
+                "nearest_station_distance_km": r.nearest_station_distance_km,
+                "allocated_mw": r.allocated_mw,
+                "unmet_mw": r.unmet_mw,
+                "fulfillment_pct": r.fulfillment_pct,
+                "transmission_cost_usd": r.transmission_cost_usd,
+                "recommended_action": r.recommended_action,
+            }
+            for r in plan.regions
+        ],
+    }
+
+
+def serialize_algorithm_comparison(comparisons) -> list[dict[str, Any]]:
+    return [
+        {
+            "algorithm": c.algorithm,
+            "label": c.label,
+            "overall_fulfillment_pct": c.overall_fulfillment_pct,
+            "total_unmet_mw": c.total_unmet_mw,
+            "total_transmission_cost_usd": c.total_transmission_cost_usd,
+            "worst_region_fulfillment_pct": c.worst_region_fulfillment_pct,
+        }
+        for c in comparisons or []
+    ]
+
+
+# Illustrative business-layer assumptions -- same spirit as the illustrative
+# $/MWh dispatch costs in backend/tools/load_balancing.py: not a real tariff
+# or a real O&M contract, but a defensible, documented stand-in so a full
+# revenue-vs-cost P&L can be computed rather than asserted.
+#
+# WHOLESALE_PRICE_USD_PER_MWH: ~ the real 2019 German day-ahead wholesale
+# average (~EUR 37-40/MWh -> ~USD 42-45/MWh) -- what a grid operator actually
+# realizes per MWh delivered, not a retail/residential rate.
+#
+# MAINTENANCE_RATE_USD_PER_MW_YEAR: a blended operations & maintenance
+# benchmark across the generation mix this app models (thermal, onshore/
+# offshore wind, solar, storage), in the range public O&M benchmarks (e.g.
+# NREL's Annual Technology Baseline) report for those technologies --
+# roughly $15k-45k/MW-year depending on technology; $25k/MW-year is a
+# reasonable blended midpoint, not any single real contract.
+WHOLESALE_PRICE_USD_PER_MWH = 45.0
+MAINTENANCE_RATE_USD_PER_MW_YEAR = 25_000.0
+HOURS_PER_YEAR = 8760
+
+
+def serialize_business_impact(curtailment, anomalies, load_balance, regional, horizon_hours) -> dict[str, Any]:
+    """Full run-level P&L: what this run's dispatch plan earns (energy
+    actually delivered x wholesale price) against everything it costs to run
+    it (LP operating cost + prorated fleet maintenance + regional
+    transmission cost) -- not a rigged number, a real formula that can show
+    a loss if the inputs are bad enough (e.g. heavy unmet-demand penalties
+    or a severe anomaly-driven cost run), which is the point: this run's
+    financial viability should be an honest computed answer, not an assumed
+    one.
+
+    Maintenance is prorated for the horizon this run actually covers
+    (`horizon_hours` out of a year), applied to the total generation-hub
+    capacity from the regional-distribution reference data (backend/data/
+    regions.py) -- the broadest infrastructure figure now in the pipeline.
+
+    `optimization_value_usd` / `anomaly_cost_exposure_usd` are kept as
+    separate, non-netted context (see their own docstrings below) since they
+    cover different time windows than the horizon-level P&L above them.
+    """
+    feasible = curtailment.baseline.feasible and curtailment.optimized.feasible
+    optimization_value = (
+        round(curtailment.baseline.total_cost - curtailment.optimized.total_cost, 2) if feasible else 0.0
+    )
+    anomaly_cost_exposure = round(sum(f.estimated_cost_usd for f in anomalies or []), 2)
+
+    mwh_served = (
+        sum(max(0.0, h.demand_mw - h.unmet_mw) for h in load_balance.hours)
+        if load_balance and load_balance.feasible
+        else 0.0
+    )
+    revenue_usd = round(mwh_served * WHOLESALE_PRICE_USD_PER_MWH, 2)
+
+    operating_cost_usd = round(load_balance.total_cost, 2) if load_balance and load_balance.feasible else 0.0
+    transmission_cost_usd = round(regional.total_transmission_cost_usd, 2) if regional else 0.0
+    total_capacity_mw = regional.total_station_capacity_mw if regional else 0.0
+    maintenance_cost_usd = round(
+        total_capacity_mw * MAINTENANCE_RATE_USD_PER_MW_YEAR * (horizon_hours / HOURS_PER_YEAR), 2
+    )
+
+    total_cost_usd = round(operating_cost_usd + maintenance_cost_usd + transmission_cost_usd, 2)
+    net_profit_usd = round(revenue_usd - total_cost_usd, 2)
+    profit_margin_pct = round((net_profit_usd / revenue_usd) * 100, 1) if revenue_usd > 0 else None
+
+    if revenue_usd <= 0:
+        verdict = "undetermined"
+    elif net_profit_usd > 0:
+        verdict = "profit"
+    elif net_profit_usd == 0:
+        verdict = "breakeven"
+    else:
+        verdict = "loss"
+
+    return {
+        "revenue_usd": revenue_usd,
+        "mwh_served": round(mwh_served, 1),
+        "operating_cost_usd": operating_cost_usd,
+        "maintenance_cost_usd": maintenance_cost_usd,
+        "transmission_cost_usd": transmission_cost_usd,
+        "total_cost_usd": total_cost_usd,
+        "net_profit_usd": net_profit_usd,
+        "profit_margin_pct": profit_margin_pct,
+        "verdict": verdict,
+        "wholesale_price_usd_per_mwh": WHOLESALE_PRICE_USD_PER_MWH,
+        "maintenance_rate_usd_per_mw_year": MAINTENANCE_RATE_USD_PER_MW_YEAR,
+        "optimization_value_usd": optimization_value,
+        "anomaly_cost_exposure_usd": anomaly_cost_exposure,
     }
 
 
@@ -280,6 +423,17 @@ def serialize_run_result(state: dict) -> dict[str, Any]:
             "anomalies": serialize_anomalies(state["anomalies"]),
             "load_balance": serialize_load_balance(state["load_balance"]),
             "curtailment": serialize_curtailment(state["curtailment"]),
+            "regional_distribution": serialize_regional_distribution(state["regional_distribution"])
+            if state.get("regional_distribution")
+            else None,
+            "regional_algorithm_comparison": serialize_algorithm_comparison(state.get("regional_algorithm_comparison")),
+            "business_impact": serialize_business_impact(
+                state["curtailment"],
+                state.get("anomalies"),
+                state.get("load_balance"),
+                state.get("regional_distribution"),
+                state.get("horizon_hours", 24),
+            ),
             "facts": serialize_facts(state.get("facts")),
             "manifest": state.get("manifest"),
             "scenario": state.get("manifest", {}).get("scenario") if state.get("manifest") else None,

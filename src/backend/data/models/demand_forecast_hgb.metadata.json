@@ -1,0 +1,152 @@
+{
+  "trained_at": "2026-09-19T05:18:24.770478+00:00",
+  "model_type": "sklearn.ensemble.HistGradientBoostingRegressor",
+  "hyperparameters": {
+    "loss": "squared_error",
+    "learning_rate": 0.06,
+    "max_iter": 400,
+    "max_depth": 7,
+    "max_leaf_nodes": 31,
+    "min_samples_leaf": 40,
+    "l2_regularization": 0.1,
+    "early_stopping": true,
+    "validation_fraction": 0.1,
+    "n_iter_no_change": 20,
+    "random_state": 42
+  },
+  "feature_columns": [
+    "horizon_h",
+    "roll_mean_24",
+    "roll_mean_168",
+    "roll_std_168",
+    "lag_168",
+    "lag_336",
+    "trend_ratio",
+    "renewable_cf_expected",
+    "hour_sin",
+    "hour_cos",
+    "dow_sin",
+    "dow_cos",
+    "month_sin",
+    "month_cos",
+    "is_weekend"
+  ],
+  "target_column": "target_load_mw",
+  "horizons_trained": [
+    1,
+    2,
+    3,
+    4,
+    6,
+    8,
+    12,
+    16,
+    20,
+    24,
+    30,
+    36,
+    42,
+    48,
+    54,
+    60,
+    66,
+    72
+  ],
+  "train_test_split": "2019-01-01",
+  "origin_stride_hours": 3,
+  "n_train_rows": 103104,
+  "n_test_rows": 52128,
+  "data_window": {
+    "start": "2017-01-01T00:00:00+00:00",
+    "end": "2019-12-31T23:00:00+00:00"
+  },
+  "metrics": {
+    "mae_mw": 2081.4,
+    "rmse_mw": 3182.0,
+    "mape_pct": 3.79,
+    "naive_mae_mw": 2555.4,
+    "improvement_over_naive_pct": 18.55
+  },
+  "feature_importance": [
+    {
+      "feature": "lag_168",
+      "importance_mw": 2948.93
+    },
+    {
+      "feature": "hour_cos",
+      "importance_mw": 2320.49
+    },
+    {
+      "feature": "lag_336",
+      "importance_mw": 2025.68
+    },
+    {
+      "feature": "dow_sin",
+      "importance_mw": 876.23
+    },
+    {
+      "feature": "roll_mean_24",
+      "importance_mw": 631.72
+    },
+    {
+      "feature": "month_cos",
+      "importance_mw": 323.62
+    },
+    {
+      "feature": "roll_mean_168",
+      "importance_mw": 252.3
+    },
+    {
+      "feature": "hour_sin",
+      "importance_mw": 205.1
+    },
+    {
+      "feature": "horizon_h",
+      "importance_mw": 127.48
+    },
+    {
+      "feature": "roll_std_168",
+      "importance_mw": 97.03
+    },
+    {
+      "feature": "dow_cos",
+      "importance_mw": 82.69
+    },
+    {
+      "feature": "is_weekend",
+      "importance_mw": 35.72
+    },
+    {
+      "feature": "month_sin",
+      "importance_mw": 20.01
+    },
+    {
+      "feature": "trend_ratio",
+      "importance_mw": 12.64
+    },
+    {
+      "feature": "renewable_cf_expected",
+      "importance_mw": -4.53
+    }
+  ],
+  "residual_std_by_horizon_mw": {
+    "1": 2899.1865537688327,
+    "2": 2812.9113495025385,
+    "3": 3001.59991202902,
+    "4": 2975.1455030101706,
+    "6": 3106.168881459703,
+    "8": 3060.3228671601946,
+    "12": 3367.2700976252504,
+    "16": 3466.018882849487,
+    "20": 3588.2294919341157,
+    "24": 3772.4137673786267,
+    "30": 3866.266535442861,
+    "36": 3937.401471020904,
+    "42": 3965.50163532035,
+    "48": 3957.925843315338,
+    "54": 3953.6302455168293,
+    "60": 3954.0842166421926,
+    "66": 3940.6925581985615,
+    "72": 3947.935426913594
+  }
+}

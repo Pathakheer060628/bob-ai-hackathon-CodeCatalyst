@@ -38,6 +38,31 @@ export default function OperatorBrief() {
   const verification = activeResult.verification;
   const trusted = verification?.trusted;
 
+  if (activeResult.status === "blocked" || !activeResult.narrative) {
+    const reasons = activeResult.data_quality?.hard_fail_reasons || [];
+    return (
+      <div>
+        <div className="content__heading">
+          <h1>Verified Operator Brief</h1>
+          <p>Narrated summary, independently re-verified against computed state.</p>
+        </div>
+        <div className="error-banner">
+          <Icon name="alertTriangle" size={16} />
+          <div>
+            Run {activeRunId} was blocked before a brief could be narrated: data quality failed a hard check.
+            {reasons.length > 0 && (
+              <ul style={{ margin: "6px 0 0", paddingLeft: 18 }}>
+                {reasons.map((r, i) => (
+                  <li key={i}>{r}</li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div>
       <div className="content__heading">

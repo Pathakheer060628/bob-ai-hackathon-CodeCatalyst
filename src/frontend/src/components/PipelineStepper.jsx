@@ -11,6 +11,7 @@ const STAGES = [
   { node: "anomalies", label: "Anomalies & Root Cause", icon: "sun" },
   { node: "load_balance", label: "Load Balance", icon: "battery" },
   { node: "curtailment", label: "Curtailment", icon: "scissors" },
+  { node: "regional_distribution", label: "Regional Distribution", icon: "tower" },
   { node: "narrate", label: "Narrate", icon: "fileText" },
   { node: "verify", label: "Verify", icon: "shieldCheck" },
 ];

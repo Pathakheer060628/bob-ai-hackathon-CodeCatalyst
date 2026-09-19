@@ -93,6 +93,12 @@ logs/
 src/backend/data/gridsentinel.db
 src/backend/data/*.db-journal
 
+# ── Raw OPSD source download (~124MB, exceeds GitHub's 100MB limit) ───────────
+# The already-extracted, committed subset lives at
+# src/backend/data/grid_renewable_de_2017_2019.csv -- this is only the raw
+# upstream file used to regenerate it (see src/backend/data/DATA_SOURCE.md).
+/dataset/
+
 # ── Jupyter Notebooks (optional: remove if you want to commit notebooks) ──────
 # .ipynb_checkpoints/
 

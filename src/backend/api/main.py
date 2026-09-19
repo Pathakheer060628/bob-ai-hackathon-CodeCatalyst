@@ -93,6 +93,7 @@ def create_run(payload: RunCreateRequest):
         window_end=payload.window_end,
         lookback_days=payload.lookback_days,
         horizon_hours=payload.horizon_hours,
+        forecast_model=payload.forecast_model,
         load_balance_config=config,
         scenario=scenario,
     )
@@ -117,6 +118,7 @@ async def stream_run(run_id: str):
             window_end=record.window_end,
             lookback_days=record.lookback_days,
             horizon_hours=record.horizon_hours,
+            forecast_model=record.forecast_model,
         )
         try:
             full_history, history = _resolve_window(payload)
@@ -127,6 +129,7 @@ async def stream_run(run_id: str):
                 load_balance_config=record.load_balance_config,
                 scenario=record.scenario,
                 run_id=run_id,
+                forecast_model=record.forecast_model,
             )
 
             final_state: dict = {}

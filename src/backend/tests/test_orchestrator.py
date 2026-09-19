@@ -40,6 +40,7 @@ def test_stream_pipeline_yields_all_nodes_in_order():
         "anomalies",
         "load_balance",
         "curtailment",
+        "regional_distribution",
         "facts",
         "narrate",
         "verify",

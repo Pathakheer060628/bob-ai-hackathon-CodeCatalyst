@@ -24,6 +24,7 @@ from backend.llm.provider import (
     narrate_curtailment,
     narrate_forecast,
     narrate_load_balance,
+    narrate_regional_distribution,
 )
 
 SYSTEM_PROMPT = """You are a grid operations narrator. You will be given already-computed
@@ -64,6 +65,7 @@ class BobWatsonxProvider:
                     narrate_anomalies(context.get("anomalies", [])),
                     narrate_load_balance(context.get("load_balance")),
                     narrate_curtailment(context.get("curtailment")),
+                    narrate_regional_distribution(context.get("regional_distribution")),
                 ],
             )
         )
