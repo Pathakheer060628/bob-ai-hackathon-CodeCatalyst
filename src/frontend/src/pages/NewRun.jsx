@@ -20,14 +20,14 @@ export default function NewRun() {
 
   const seenNodes = useMemo(() => progress.map((p) => p.node), [progress]);
 
-  const handleSubmit = async ({ windowEnd, lookbackDays, horizonHours, loadBalanceConfig }) => {
+  const handleSubmit = async ({ windowEnd, lookbackDays, horizonHours, loadBalanceConfig, forecastModel }) => {
     setError(null);
     setProgress([]);
     setCompleted(false);
     setRunning(true);
     setConnection("connecting");
     try {
-      const { run_id } = await createRun({ windowEnd, lookbackDays, horizonHours, loadBalanceConfig });
+      const { run_id } = await createRun({ windowEnd, lookbackDays, horizonHours, loadBalanceConfig, forecastModel });
       setRunId(run_id);
       setActiveFromLiveRun(run_id);
       streamRun(run_id, {

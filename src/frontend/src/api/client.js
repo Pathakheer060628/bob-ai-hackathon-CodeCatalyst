@@ -6,7 +6,7 @@ export async function getDatasetInfo() {
   return res.json();
 }
 
-export async function createRun({ windowEnd, lookbackDays, horizonHours, loadBalanceConfig }) {
+export async function createRun({ windowEnd, lookbackDays, horizonHours, loadBalanceConfig, forecastModel }) {
   const res = await fetch(`${BASE}/runs`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -15,6 +15,7 @@ export async function createRun({ windowEnd, lookbackDays, horizonHours, loadBal
       lookback_days: lookbackDays,
       horizon_hours: horizonHours,
       load_balance_config: loadBalanceConfig || undefined,
+      forecast_model: forecastModel || "seasonal",
     }),
   });
   if (!res.ok) {

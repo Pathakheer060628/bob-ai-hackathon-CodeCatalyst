@@ -30,6 +30,7 @@ import pandas as pd
 from langgraph.graph import END, StateGraph
 
 from backend.llm.provider import get_provider
+from backend.ml.ml_forecasting import ModelNotTrainedError, is_model_available, ml_forecast_demand
 from backend.tools.anomaly_detection import ASSET_COLUMNS, detect_renewable_anomalies
 from backend.tools.curtailment import CurtailmentPlan, minimize_curtailment
 from backend.tools.data_quality import DataQualityReport, assess_window_quality
@@ -81,6 +82,7 @@ class GridState(TypedDict, total=False):
     horizon_hours: int
     load_balance_config: LoadBalanceConfig
     scenario: ScenarioConfig
+    forecast_model: str  # "seasonal" (default, deterministic) or "ml" (trained HistGradientBoostingRegressor)
 
     data_quality: DataQualityReport
     forecast: ForecastResult
@@ -153,17 +155,30 @@ def node_forecast(state: GridState) -> dict:
     history = state["history"]
     full_history = state["full_history"]
     scenario = state.get("scenario")
+    forecast_model = state.get("forecast_model", "seasonal")
 
-    forecast = forecast_demand(history["load_actual_mw"], horizon_hours=horizon)
+    log_lines: list[str] = []
+    if forecast_model == "ml" and is_model_available():
+        try:
+            forecast = ml_forecast_demand(history, full_history, horizon_hours=horizon)
+            log_lines.append("Demand forecast produced by trained ML model (HistGradientBoostingRegressor).")
+        except ModelNotTrainedError:
+            forecast = forecast_demand(history["load_actual_mw"], horizon_hours=horizon)
+            log_lines.append("ML model unavailable -- fell back to seasonal-naive forecast.")
+    else:
+        if forecast_model == "ml":
+            log_lines.append("ML model not trained yet -- using seasonal-naive forecast.")
+        forecast = forecast_demand(history["load_actual_mw"], horizon_hours=horizon)
+
     renewable_forecast = forecast_renewable_supply(
         full_history, start=history.index.max() + pd.Timedelta(hours=1), horizon_hours=horizon
     )
     backtest = backtest_demand_forecast(history["load_actual_mw"], horizon_hours=horizon)
 
-    log_lines = [
+    log_lines.append(
         f"Forecast complete: peak {forecast.peak.forecast_mw:,.0f} MW, "
         f"{len(forecast.spikes)} spike hour(s) flagged."
-    ]
+    )
     if backtest.n_points:
         log_lines.append(
             f"Backtest: MAE {backtest.mae:,.0f} MW vs. naive-baseline MAE {backtest.naive_mae:,.0f} MW "
@@ -347,6 +362,7 @@ class PipelineRequest:
     load_balance_config: LoadBalanceConfig | None = None
     scenario: ScenarioConfig | None = None
     run_id: str | None = None
+    forecast_model: str = "seasonal"
 
 
 def _initial_state(request: PipelineRequest) -> GridState:
@@ -354,6 +370,7 @@ def _initial_state(request: PipelineRequest) -> GridState:
         "history": request.history,
         "full_history": request.full_history,
         "horizon_hours": request.horizon_hours,
+        "forecast_model": request.forecast_model,
         "progress_log": [],
     }
     if request.run_id:

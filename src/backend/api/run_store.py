@@ -32,6 +32,7 @@ class RunRecord:
     window_end: str
     lookback_days: int
     horizon_hours: int
+    forecast_model: str = "seasonal"
     load_balance_config: Any = None
     scenario: ScenarioConfig | None = None
     result: dict | None = None
@@ -71,6 +72,7 @@ def _row_to_record(row: Run) -> RunRecord:
         window_end=row.window_end,
         lookback_days=row.lookback_days,
         horizon_hours=row.horizon_hours,
+        forecast_model=row.forecast_model,
         load_balance_config=_config_from_dict(row.config),
         scenario=_scenario_from_dict(row.scenario),
         result=row.result,
@@ -99,6 +101,7 @@ class RunStore:
         window_end: str,
         lookback_days: int,
         horizon_hours: int,
+        forecast_model: str = "seasonal",
         load_balance_config: LoadBalanceConfig | None = None,
         scenario: ScenarioConfig | None = None,
     ) -> RunRecord:
@@ -111,6 +114,7 @@ class RunStore:
                 window_end=window_end,
                 lookback_days=lookback_days,
                 horizon_hours=horizon_hours,
+                forecast_model=forecast_model,
                 config=_config_to_dict(load_balance_config),
                 scenario=_scenario_to_dict(scenario),
                 result=None,

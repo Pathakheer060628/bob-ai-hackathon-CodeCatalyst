@@ -39,6 +39,7 @@ class RunCreateRequest(BaseModel):
     horizon_hours: int = Field(24, ge=1, le=72)
     load_balance_config: LoadBalanceConfigIn | None = None
     scenario: ScenarioConfigIn | None = None
+    forecast_model: str = Field("seasonal", pattern="^(seasonal|ml)$")
 
 
 def to_load_balance_config(payload: LoadBalanceConfigIn | None, peak_load_mw: float) -> LoadBalanceConfig | None:
