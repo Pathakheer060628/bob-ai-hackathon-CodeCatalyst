@@ -132,6 +132,31 @@ def build_fact_ledger(state: dict, run_id: str) -> list[Fact]:
             "curtailment_avoided_mwh / baseline_curtailed_mwh.",
         )
 
+    regional = state.get("regional_distribution")
+    if regional:
+        add(
+            "regional_demand_fulfillment_pct",
+            regional.overall_fulfillment_pct,
+            "%",
+            "Population-weighted per-region share of peak forecast demand, routed from the "
+            "least-cost combination of generation hubs subject to each hub's capacity; "
+            "% of total demand actually covered.",
+        )
+        add(
+            "regional_unmet_demand_mw",
+            regional.total_unmet_mw,
+            "MW",
+            "Sum of per-region shortfall after least-cost routing -- demand that could not be "
+            "covered by any generation hub's remaining capacity.",
+        )
+        add(
+            "regional_transmission_cost_usd",
+            regional.total_transmission_cost_usd,
+            "USD",
+            "Sum of (distance_km x illustrative $/MW/km rate x MW delivered) over every "
+            "hub-to-region route used in the least-cost allocation.",
+        )
+
     return facts
 
 

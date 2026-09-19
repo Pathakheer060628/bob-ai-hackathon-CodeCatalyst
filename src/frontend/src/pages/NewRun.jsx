@@ -123,6 +123,9 @@ export default function NewRun() {
             <button className="btn btn-secondary" onClick={() => navigate("/optimization")}>
               Optimization
             </button>
+            <button className="btn btn-secondary" onClick={() => navigate("/regional")}>
+              Regional Distribution
+            </button>
             <button className="btn btn-primary" onClick={() => navigate("/brief")}>
               Operator Brief
             </button>

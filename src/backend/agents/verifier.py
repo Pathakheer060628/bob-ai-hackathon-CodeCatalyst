@@ -89,6 +89,17 @@ def _collect_trusted_numbers(state: dict) -> set[float]:
         add(curtailment.curtailment_avoided_mwh)
         add(curtailment.curtailment_reduction_pct)
 
+    regional = state.get("regional_distribution")
+    if regional:
+        add(regional.total_demand_mw)
+        add(regional.total_allocated_mw)
+        add(regional.total_unmet_mw)
+        add(regional.overall_fulfillment_pct)
+        add(regional.total_transmission_cost_usd)
+        add(len(regional.regions))
+        for r in regional.regions:
+            add(r.unmet_mw)
+
     return trusted
 
 

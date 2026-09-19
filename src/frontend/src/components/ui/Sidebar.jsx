@@ -7,6 +7,7 @@ const NAV_ITEMS = [
   { to: "/anomalies", label: "Anomaly Intelligence", icon: "sun" },
   { to: "/optimization", label: "Optimization Plan", icon: "battery" },
   { to: "/curtailment", label: "Curtailment Impact", icon: "scissors" },
+  { to: "/regional", label: "Regional Distribution", icon: "tower" },
   { to: "/brief", label: "Operator Brief", icon: "fileText" },
   { to: "/history", label: "Run History", icon: "layers" },
 ];

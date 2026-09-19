@@ -21,6 +21,7 @@ import NewRun from "./pages/NewRun.jsx";
 import AnomalyIntelligence from "./pages/AnomalyIntelligence.jsx";
 import OptimizationPlan from "./pages/OptimizationPlan.jsx";
 import CurtailmentImpact from "./pages/CurtailmentImpact.jsx";
+import RegionalDistribution from "./pages/RegionalDistribution.jsx";
 import OperatorBrief from "./pages/OperatorBrief.jsx";
 import RunHistory from "./pages/RunHistory.jsx";
 import RunDetail from "./pages/RunDetail.jsx";
@@ -71,6 +72,7 @@ export default function App() {
               <Route path="/anomalies" element={<AnomalyIntelligence />} />
               <Route path="/optimization" element={<OptimizationPlan />} />
               <Route path="/curtailment" element={<CurtailmentImpact />} />
+              <Route path="/regional" element={<RegionalDistribution />} />
               <Route path="/brief" element={<OperatorBrief />} />
               <Route path="/history" element={<RunHistory />} />
               <Route path="/runs/:runId" element={<RunDetail />} />

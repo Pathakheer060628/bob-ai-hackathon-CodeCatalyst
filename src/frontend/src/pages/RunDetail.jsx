@@ -85,6 +85,10 @@ export default function RunDetail() {
                 <Icon name="scissors" size={15} />
                 Curtailment Impact
               </Link>
+              <Link to="/regional" className="btn btn-secondary">
+                <Icon name="tower" size={15} />
+                Regional Distribution
+              </Link>
               <Link to="/brief" className="btn btn-primary">
                 <Icon name="fileText" size={15} />
                 Operator Brief
