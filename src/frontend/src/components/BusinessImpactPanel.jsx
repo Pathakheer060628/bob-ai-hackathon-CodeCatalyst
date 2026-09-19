@@ -1,21 +1,23 @@
 import Icon from "./ui/Icon.jsx";
 
 const VERDICT_COPY = {
-  profit: { label: "Plan in Profit", color: "var(--status-good)", icon: "trendingUp" },
+  profit: { label: "Net Profit", color: "var(--status-good)", icon: "trendingUp" },
   breakeven: { label: "Break-even", color: "var(--text-secondary)", icon: "activity" },
+  loss: { label: "Net Loss", color: "var(--status-critical)", icon: "alertTriangle" },
   undetermined: { label: "Undetermined", color: "var(--text-secondary)", icon: "alertTriangle" },
 };
 
 /**
- * Two already-computed cost readings, shown separately rather than netted
- * into one number -- they cover different time windows (the optimization
- * value is over the forecast horizon; anomaly cost exposure is over the
- * historical lookback window) so combining them would be misleading. No new
- * pipeline stage -- everything here comes from `result.business_impact`
- * (backend/api/schemas.py::serialize_business_impact) and
- * `result.anomalies[].estimated_cost_usd`.
+ * Full run-level P&L (backend/api/schemas.py::serialize_business_impact):
+ * revenue (energy actually delivered x an illustrative wholesale price)
+ * against everything it costs to deliver it -- LP operating cost, prorated
+ * fleet maintenance (illustrative $/MW-year O&M benchmark applied to the
+ * regional-distribution hub capacity), and regional transmission cost.
+ * `optimization_value_usd` / `anomaly_cost_exposure_usd` are shown
+ * separately below since they cover different time windows than the
+ * horizon-level P&L above them.
  */
-export default function BusinessImpactPanel({ businessImpact, curtailment, anomalies }) {
+export default function BusinessImpactPanel({ businessImpact, anomalies }) {
   const verdict = VERDICT_COPY[businessImpact.verdict] || VERDICT_COPY.undetermined;
 
   const topCostAnomalies = [...anomalies]
@@ -31,12 +33,12 @@ export default function BusinessImpactPanel({ businessImpact, curtailment, anoma
             <span className="section-header__icon">
               <Icon name="dollar" size={16} />
             </span>
-            <h2>Business Impact</h2>
+            <h2>Business Impact &amp; Profit/Loss</h2>
           </div>
           <p className="section-header__subtitle">
-            What the optimized dispatch plan is worth vs. doing nothing (this forecast horizon), shown alongside the
-            $ risk already identified in this run's anomalies (the historical lookback window) -- kept separate since
-            they cover different time periods.
+            Revenue from energy actually delivered this horizon (${businessImpact.wholesale_price_usd_per_mwh}/MWh
+            illustrative wholesale price), against operating cost, prorated fleet maintenance (${businessImpact.maintenance_rate_usd_per_mw_year.toLocaleString()}/MW-year
+            blended O&amp;M benchmark), and regional transmission cost.
           </p>
         </div>
         <span
@@ -50,19 +52,39 @@ export default function BusinessImpactPanel({ businessImpact, curtailment, anoma
 
       <div className="stat-row">
         <div className="stat-tile">
-          <div className="stat-tile__label">Baseline plan cost (this horizon)</div>
-          <div className="stat-tile__value">
-            {curtailment.baseline_total_cost_usd != null ? `$${curtailment.baseline_total_cost_usd.toLocaleString()}` : "n/a"}
-          </div>
+          <div className="stat-tile__label">Revenue ({businessImpact.mwh_served.toLocaleString()} MWh delivered)</div>
+          <div className="stat-tile__value">${businessImpact.revenue_usd.toLocaleString()}</div>
         </div>
         <div className="stat-tile">
-          <div className="stat-tile__label">Optimized plan cost (this horizon)</div>
-          <div className="stat-tile__value">
-            {curtailment.optimized_total_cost_usd != null ? `$${curtailment.optimized_total_cost_usd.toLocaleString()}` : "n/a"}
-          </div>
+          <div className="stat-tile__label">Operating cost</div>
+          <div className="stat-tile__value">${businessImpact.operating_cost_usd.toLocaleString()}</div>
         </div>
         <div className="stat-tile">
-          <div className="stat-tile__label">Optimization value (profit)</div>
+          <div className="stat-tile__label">Maintenance cost</div>
+          <div className="stat-tile__value">${businessImpact.maintenance_cost_usd.toLocaleString()}</div>
+        </div>
+        <div className="stat-tile">
+          <div className="stat-tile__label">Transmission cost</div>
+          <div className="stat-tile__value">${businessImpact.transmission_cost_usd.toLocaleString()}</div>
+        </div>
+        <div className="stat-tile">
+          <div className="stat-tile__label">Total cost</div>
+          <div className="stat-tile__value">${businessImpact.total_cost_usd.toLocaleString()}</div>
+        </div>
+        <div className="stat-tile">
+          <div className="stat-tile__label">Net profit</div>
+          <div className="stat-tile__value" style={{ color: verdict.color }}>
+            ${businessImpact.net_profit_usd.toLocaleString()}
+            {businessImpact.profit_margin_pct != null && (
+              <span style={{ fontSize: 13, fontWeight: 400, color: "var(--text-secondary)" }}> ({businessImpact.profit_margin_pct}%)</span>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div className="stat-row" style={{ marginTop: 4 }}>
+        <div className="stat-tile">
+          <div className="stat-tile__label">Optimization value (vs. no flexibility)</div>
           <div className="stat-tile__value" style={{ color: "var(--status-good)" }}>
             ${businessImpact.optimization_value_usd.toLocaleString()}
           </div>
